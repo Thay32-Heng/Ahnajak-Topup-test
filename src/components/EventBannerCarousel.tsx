@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
+import { useSite } from '@/contexts/SiteContext';
 
 interface EventBanner {
   id: string;
@@ -10,10 +11,13 @@ interface EventBanner {
 }
 
 const EventBannerCarousel: React.FC = () => {
+  const { settings } = useSite();
+  const primaryColor = settings.primaryColor || '#D4A84B';
   const [banners, setBanners] = useState<EventBanner[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -26,6 +30,23 @@ const EventBannerCarousel: React.FC = () => {
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    if (banners.length < 2) return;
+    intervalRef.current = setInterval(() => {
+      if (!scrollRef.current) return;
+      const el = scrollRef.current;
+      const card = el.children[0] as HTMLElement;
+      const cardW = card ? card.offsetWidth + 12 : el.clientWidth * 0.7;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      if (el.scrollLeft >= maxScroll - 10) {
+        el.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        el.scrollBy({ left: cardW, behavior: 'smooth' });
+      }
+    }, 5000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [banners.length]);
 
   const scroll = (dir: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -42,7 +63,7 @@ const EventBannerCarousel: React.FC = () => {
     <>
       <div className="mb-6 sm:mb-8">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-pink-500 text-sm">●</span>
+          <span className="text-sm" style={{ color: primaryColor }}>●</span>
           <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-50 uppercase tracking-wide">
             NEW EVENTS & PROMOTIONS
           </h3>
