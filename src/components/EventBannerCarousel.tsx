@@ -60,7 +60,7 @@ const EventBannerCarousel: React.FC = () => {
               <button
                 key={banner.id}
                 onClick={() => setLightbox(banner.image)}
-                className="snap-start shrink-0 w-[85vw] sm:w-[70vw] lg:w-[45vw] max-w-[600px] aspect-[21/9] rounded-2xl overflow-hidden border border-white/10 dark:border-zinc-700/50 bg-zinc-200 dark:bg-zinc-800 hover:scale-[1.02] transition-transform duration-300 focus:outline-none"
+                className="snap-start shrink-0 w-[55vw] sm:w-[42vw] lg:w-[28vw] max-w-[380px] aspect-[21/9] rounded-2xl overflow-hidden border border-white/10 dark:border-zinc-700/50 bg-zinc-200 dark:bg-zinc-800 hover:scale-[1.02] transition-transform duration-300 focus:outline-none"
               >
                 <img
                   src={banner.image}
