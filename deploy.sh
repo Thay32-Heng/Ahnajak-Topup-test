@@ -35,8 +35,9 @@ show_menu() {
   echo -e " [1] Setup/Renew Let's Encrypt SSL"
   echo -e " [2] Uninstall Ahnajak Topup"
   echo -e " [3] Update Existing Installation (pull, migrate, build, restart)"
-  echo -e " [4] Exit\n"
-  read -p "* Input option (0-4): " OPTION
+  echo -e " [4] Add Another Domain (alongside existing sites)"
+  echo -e " [5] Exit\n"
+  read -p "* Input option (0-5): " OPTION
 }
 
 check_mysql() {
@@ -336,6 +337,180 @@ NGINX
   log "Installation complete for ${DOMAIN_NAME}"
 }
 
+add_domain() {
+  log "Adding another domain"
+  echo -e "\n${BLUE}>>> Configuration${NC}"
+  read -p "New domain (e.g. woosaastore.com): " DOMAIN_NAME
+  DOMAIN_NAME=${DOMAIN_NAME:-example.com}
+  APP_DIR="/var/www/${DOMAIN_NAME}"
+
+  read -p "API port [3020]: " APP_PORT
+  APP_PORT=${APP_PORT:-3020}
+
+  read -p "New database name [${DOMAIN_NAME//./_}_db]: " DB_NAME
+  DB_NAME=${DB_NAME:-${DOMAIN_NAME//./_}_db}
+
+  read -p "Database user [${DOMAIN_NAME//./_}]: " DB_USER
+  DB_USER=${DB_USER:-${DOMAIN_NAME//./_}}
+
+  SUGGESTED_DB_PASS=$(openssl rand -hex 12)
+  read -p "Database password [$SUGGESTED_DB_PASS]: " DB_PASSWORD
+  DB_PASSWORD=${DB_PASSWORD:-$SUGGESTED_DB_PASS}
+
+  read -p "Admin email [admin@${DOMAIN_NAME}]: " ADMIN_EMAIL
+  ADMIN_EMAIL=${ADMIN_EMAIL:-admin@${DOMAIN_NAME}}
+
+  SUGGESTED_ADMIN_PASS="admin$(openssl rand -hex 4)"
+  read -p "Admin password [$SUGGESTED_ADMIN_PASS]: " ADMIN_PASSWORD
+  ADMIN_PASSWORD=${ADMIN_PASSWORD:-$SUGGESTED_ADMIN_PASS}
+
+  read -p "Email for Let's Encrypt: " EMAIL_ADDR
+
+  # Database
+  echo -e "\n${BLUE}>>> Database Setup${NC}" | tee -a "$LOG_PATH"
+  mysql <<SQL
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+DROP USER IF EXISTS '${DB_USER}'@'localhost';
+CREATE USER '${DB_USER}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASSWORD}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+  success "Database '${DB_NAME}' created"
+
+  # Deploy app
+  echo -e "\n${BLUE}>>> Application Deploy${NC}" | tee -a "$LOG_PATH"
+  mkdir -p "$APP_DIR"
+  if [ "$(pwd)" != "$APP_DIR" ]; then
+    cp -r . "$APP_DIR"
+  fi
+  cd "$APP_DIR"
+
+  JWT_SECRET=$(openssl rand -hex 32)
+  cat > .env <<EOT
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+DB_NAME=${DB_NAME}
+PORT=${APP_PORT}
+JWT_SECRET=${JWT_SECRET}
+JWT_EXPIRES_IN=24h
+PUBLIC_BASE_URL=https://${DOMAIN_NAME}
+FRONTEND_URL=https://${DOMAIN_NAME}
+ALLOWED_ORIGINS=https://${DOMAIN_NAME}
+EOT
+  success ".env configured"
+
+  info "Installing npm packages..."
+  npm install --loglevel=error
+  success "npm packages installed"
+
+  info "Running database seed..."
+  node scripts/seed.cjs
+  success "Database seeded"
+
+  BCRYPT_HASH=$(node -e "const bcrypt = require('bcryptjs'); console.log(bcrypt.hashSync('${ADMIN_PASSWORD}', 10));")
+  mysql "$DB_NAME" -e "UPDATE users SET email = '${ADMIN_EMAIL}', password_hash = '${BCRYPT_HASH}' WHERE email = 'admin@ahnajak.com';"
+  success "Admin: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}"
+
+  info "Building frontend..."
+  npm run build
+  success "Frontend built"
+
+  # Nginx — create separate config, do NOT remove existing sites
+  echo -e "\n${BLUE}>>> Nginx Configuration${NC}" | tee -a "$LOG_PATH"
+  cat > /etc/nginx/sites-available/${DOMAIN_NAME} <<NGINX
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN_NAME} www.${DOMAIN_NAME};
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+
+    location ^~ /.well-known/acme-challenge/ {
+        root ${APP_DIR}/dist;
+        default_type "text/plain";
+        allow all;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN_NAME} www.${DOMAIN_NAME};
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1440m;
+
+    root ${APP_DIR}/dist;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://localhost:${APP_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location /uploads/ {
+        proxy_pass http://localhost:${APP_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+NGINX
+
+  ln -sf /etc/nginx/sites-available/${DOMAIN_NAME} /etc/nginx/sites-enabled/
+  nginx -t && systemctl reload nginx
+  success "Nginx config added for ${DOMAIN_NAME}"
+
+  # SSL
+  if [ -n "$EMAIL_ADDR" ]; then
+    info "Getting SSL certificate..."
+    certbot --nginx --non-interactive --agree-tos -m "$EMAIL_ADDR" -d "$DOMAIN_NAME" -d "www.$DOMAIN_NAME" || warn "SSL failed — run option [1] later"
+    nginx -t && systemctl reload nginx
+  fi
+
+  # PM2 — unique name per domain
+  npm install -g pm2 --silent 2>/dev/null
+  pm2 delete "${DOMAIN_NAME}-api" 2>/dev/null || true
+  pm2 start server/index.cjs --name "${DOMAIN_NAME}-api"
+  pm2 save
+  success "PM2 started — ${DOMAIN_NAME}-api on port ${APP_PORT}"
+
+  clear
+  echo -e "${GREEN}=====================================================================${NC}"
+  echo -e "       DOMAIN ADDED SUCCESSFULLY!                                     "
+  echo -e "${GREEN}=====================================================================${NC}"
+  echo -e " Website:   https://${DOMAIN_NAME}"
+  echo -e " Admin:     https://${DOMAIN_NAME}/auth"
+  echo -e " Email:     ${ADMIN_EMAIL}"
+  echo -e " Password:  ${YELLOW}${ADMIN_PASSWORD}${NC}"
+  echo -e " API Port:  ${APP_PORT}"
+  echo -e "${GREEN}=====================================================================${NC}"
+  log "Domain ${DOMAIN_NAME} added on port ${APP_PORT}"
+}
+
 setup_ssl_only() {
   read -p "Domain: " DOM_NAME
   read -p "Email: " E_ADDR
@@ -376,5 +551,6 @@ case "$OPTION" in
   1) setup_ssl_only ;;
   2) uninstall_app ;;
   3) update_app ;;
+  4) add_domain ;;
   *) echo "Exiting."; exit 0 ;;
 esac
