@@ -945,7 +945,7 @@ const TopupPage: React.FC = () => {
             <div key={field.key} className={field.width || (hasMultipleFields && index === 0 ? "flex-1" : "")}>
               <label
                 className="text-xs sm:text-sm font-medium mb-1.5 sm:mb-2 block"
-                style={{ color: settings.frameColor || primaryColor }}
+                style={{ color: primaryColor }}
               >
                 {field.label}
               </label>
@@ -984,7 +984,7 @@ const TopupPage: React.FC = () => {
         {dynamicFields.example && (
           <p
             className="text-xs text-muted-foreground pl-1"
-            style={{ color: settings.frameColor ? `${settings.frameColor}99` : `${primaryColor}99` }}
+            style={{ color: `${primaryColor}99` }}
           >
             {dynamicFields.example}
           </p>
@@ -1241,14 +1241,14 @@ const TopupPage: React.FC = () => {
                     <span
                       className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm text-white"
                       style={{
-                        backgroundColor: settings.frameColor || primaryColor,
+                        backgroundColor: primaryColor,
                       }}
                     >
                       1
                     </span>
                     <h2
                       className="font-khmer text-base sm:text-xl font-bold"
-                      style={{ color: settings.frameColor || primaryColor }}
+                      style={{ color: primaryColor }}
                     >
                       សុំបញ្ចូល ID របស់អ្នក
                     </h2>
@@ -1362,7 +1362,7 @@ const TopupPage: React.FC = () => {
                 {!verifiedUser && (
                   <p
                     className="text-xs sm:text-sm mt-3 sm:mt-4"
-                    style={{ color: settings.frameColor || primaryColor }}
+                    style={{ color: primaryColor }}
                   >
                     បញ្ចូល ID ហើយចុច "ផ្ទៀងផ្ទាត់" ដើម្បីពិនិត្យ
                   </p>
@@ -1383,8 +1383,8 @@ const TopupPage: React.FC = () => {
                     style={
                       !verifiedUser
                         ? {
-                          borderColor: settings.frameColor || primaryColor,
-                          color: settings.frameColor || primaryColor,
+                          borderColor: primaryColor,
+                          color: primaryColor,
                         }
                         : undefined
                     }
@@ -1419,12 +1419,12 @@ const TopupPage: React.FC = () => {
                       <span
                         className="w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shadow-lg ring-2 ring-white/70 text-white"
                         style={{
-                          backgroundColor: settings.frameColor || primaryColor,
+                          backgroundColor: primaryColor,
                         }}
                       >
                         2
                       </span>
-                      <h2 className="font-khmer text-base sm:text-lg font-bold" style={{ color: settings.frameColor || primaryColor }}>ជ្រើសរើសតម្លៃពេជ្រ</h2>
+                      <h2 className="font-khmer text-base sm:text-lg font-bold" style={{ color: primaryColor }}>ជ្រើសរើសតម្លៃពេជ្រ</h2>
                     </div>
                     {game.specialPackages && game.specialPackages.length > 0 && (
                       <span className="px-3 h-6 sm:h-7 rounded-full bg-gradient-to-r from-red-500 via-orange-500 to-amber-500 bg-[length:200%_100%] animate-gradient-shift text-white flex items-center font-bold text-[10px] sm:text-xs shadow-lg ring-1 ring-white/40">
@@ -1558,12 +1558,12 @@ const TopupPage: React.FC = () => {
                     <span
                       className="w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm shadow-lg ring-2 ring-white/70 text-white"
                       style={{
-                        backgroundColor: settings.frameColor || primaryColor,
+                        backgroundColor: primaryColor,
                       }}
                     >
                       3
                     </span>
-                    <h2 className="font-khmer text-base sm:text-lg font-bold" style={{ color: settings.frameColor || primaryColor }}>ជ្រើសរើសធនាគារបង់ប្រាក់</h2>
+                    <h2 className="font-khmer text-base sm:text-lg font-bold" style={{ color: primaryColor }}>ជ្រើសរើសធនាគារបង់ប្រាក់</h2>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
