@@ -114,4 +114,67 @@ router.post('/bot-auth/webhook', async (req, res) => {
   } catch (err) { sendError(res, err, 'POST /bot-auth/webhook'); }
 });
 
+// Telegram bot webhook — receives updates directly from Telegram
+// Set this as your bot's webhook via:
+//   curl "https://api.telegram.org/bot<token>/setWebhook?url=https://yourdomain.com/api/auth/telegram-webhook"
+router.post('/telegram-webhook', async (req, res) => {
+  const update = req.body;
+  // Acknowledge immediately (Telegram resends if we don't respond in time)
+  res.json({ ok: true });
+
+  try {
+    const message = update?.message;
+    if (!message || !message.text) return;
+
+    const chatId = message.chat.id;
+    const text = String(message.text).trim();
+    const telegramId = String(message.from?.id || '');
+    const telegramUsername = message.from?.username || null;
+
+    // Parse /start <CODE>
+    const match = text.match(/^\/start\s+([A-Za-z0-9]+)/i);
+    if (!match) {
+      // No code — send welcome
+      const botUsername = process.env.TELEGRAM_BOT_USERNAME;
+      if (!botUsername) return;
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (!token) return;
+      const welcomeText = `Welcome! To log in to the website, please open the login page and click "Login with Telegram", then send the code you see here:\n/start <code>`;
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: welcomeText }),
+      });
+      return;
+    }
+
+    const authCode = match[1].toUpperCase();
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) return;
+
+    // Confirm the auth code
+    const result = await query(
+      `UPDATE telegram_auth_codes SET status = 'confirmed', telegram_id = ?, telegram_username = ?, confirmed_at = NOW()
+       WHERE auth_code = ? AND status = 'pending'`,
+      [telegramId, telegramUsername, authCode]
+    );
+
+    if (result[0].affectedRows > 0) {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: '✅ Login confirmed! You can close Telegram and return to the website.' }),
+      });
+    } else {
+      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: '❌ Invalid or expired code. Please try logging in again from the website.' }),
+      });
+    }
+  } catch (err) {
+    console.error('[Telegram webhook] Error:', err.message);
+  }
+});
+
 module.exports = router;
