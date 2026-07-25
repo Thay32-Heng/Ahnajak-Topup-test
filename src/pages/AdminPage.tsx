@@ -217,7 +217,7 @@ const AdminPage: React.FC = () => {
       setSearchResults((data as any)?.results || []);
     } catch (e) {
       console.error(e);
-      toast({ title: 'Search failed', description: 'Check IGDB_CLIENT_ID and IGDB_CLIENT_SECRET in .env', variant: 'destructive' });
+      toast({ title: 'Search failed', description: 'Could not fetch images from App Store or Google Play', variant: 'destructive' });
     }
     setIsSearching(false);
   };
