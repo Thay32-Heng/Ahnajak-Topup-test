@@ -194,7 +194,7 @@ const Index: React.FC = () => {
                 borderColor: `${primaryColor}25`
               }}
             >
-              <img src="/assets/fire.svg" alt="" className="" /> TOP RECHARGES IN CAMBODIA
+              <img src="/assets/fire.svg" alt="" className="inline-block w-5 h-5" /> TOP RECHARGES IN CAMBODIA
             </div>
             <h2 className="font-display text-xl sm:text-4xl font-black leading-tight text-zinc-900 dark:text-zinc-50 mb-2 sm:mb-3">
               ជ្រើសរើសទំនិញ
