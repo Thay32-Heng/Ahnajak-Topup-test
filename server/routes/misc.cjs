@@ -1,7 +1,5 @@
 /**
- * routes/misc.cjs — Proxy image + search icons + edge function aliases
- * GET /api/proxy-image?url=...
- * GET /api/search-icons?q=...
+ * routes/misc.cjs — Edge function aliases
  * POST /api/get-ikhode-public-config
  * POST /api/khqrcc-payment
  * POST /api/khqrcc-webhook
@@ -99,106 +97,6 @@ router.post('/g2bulk-webhook', async (req, res) => {
   else if (['FAILED', 'failed', 'CANCELLED'].includes(g2bulkStatus)) newStatus = 'failed';
   await query(`UPDATE ${table} SET status = ?, status_message = ? WHERE id = ?`, [newStatus, `G2Bulk callback: ${g2bulkStatus}`, orderId]);
   res.json({ received: true, orderId, newStatus });
-});
-
-// Proxy image — only allow public image URLs to prevent SSRF
-const ALLOWED_IMAGE_DOMAINS = ['i.imgur.com', 'imgur.com', 'i.ibb.co', 'ibb.co', 'icons.iconarchive.com', 'cdn-icons-png.flaticon.com', 'raw.githubusercontent.com'];
-
-router.get('/proxy-image', async (req, res) => {
-  const { url } = req.query;
-  if (!url) return res.status(400).send('URL required');
-  try {
-    const parsed = new URL(url);
-    if (!ALLOWED_IMAGE_DOMAINS.includes(parsed.hostname) && !parsed.hostname.endsWith('.r2.dev')) {
-      return res.status(403).send('Domain not allowed');
-    }
-    if (parsed.protocol !== 'https:') return res.status(403).send('HTTPS only');
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    const arrayBuffer = await response.arrayBuffer();
-    res.send(Buffer.from(arrayBuffer));
-  } catch (err) { sendError(res, err, 'GET /proxy-image'); }
-});
-
-// Search icons (Google CSE + Bing fallback)
-router.get('/search-icons', async (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.status(400).json({ error: 'Query required' });
-  try {
-    let query = String(q).trim();
-
-    // Strip Khmer chars if mixed with English
-    const khmerRegex = /[\u1780-\u17FF]+/g;
-    if (khmerRegex.test(query) && /[a-zA-Z0-9]/.test(query)) {
-      query = query.replace(khmerRegex, '').replace(/\s+/g, ' ').trim();
-    }
-
-    let modifier = ' png transparent';
-    if (/png/i.test(query)) modifier = modifier.replace(' png', '');
-    if (/transparent/i.test(query)) modifier = modifier.replace(' transparent', '');
-    query += modifier;
-
-    const results = [];
-    let success = false;
-
-    // Try Google CSE
-    try {
-      const cx = 'c1bb7535fbf0d46a1';
-      const cseJsRes = await fetch(`https://cse.google.com/cse.js?cx=${cx}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' }
-      });
-      const js = await cseJsRes.text();
-      const tokenMatch = js.match(/"cse_token":\s*"([^"]+)"/);
-      if (tokenMatch) {
-        const cse_token = tokenMatch[1];
-        const apiUrl = `https://cse.google.com/cse/element/v1?cx=${cx}&q=${encodeURIComponent(query)}&num=15&cse_tok=${cse_token}&searchType=image&safe=off`;
-        const apiRes = await fetch(apiUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cse.google.com/' }
-        });
-        if (apiRes.status === 200) {
-          const apiText = await apiRes.text();
-          const jsonMatch = apiText.match(/\/\*x\*\/\(([\s\S]*)\);/);
-          if (jsonMatch) {
-            const data = JSON.parse(jsonMatch[1]);
-            if (data.results?.length) {
-              data.results.forEach((item, i) => {
-                results.push({ title: item.titleNoFormatting || `Image ${i + 1}`, url: item.url, source: 'Google CSE' });
-              });
-              success = true;
-            }
-          }
-        }
-      }
-    } catch {}
-
-    // Bing fallback
-    if (!success || results.length === 0) {
-      try {
-        const resBing = await fetch(`https://www.bing.com/images/search?q=${encodeURIComponent(query)}`, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/91.0.4472.124 Safari/537.36' }
-        });
-        const html = await resBing.text();
-        const regex = /(?:"|&quot;)murl(?:"|&quot;):(?:"|&quot;)(https?:\/\/[^"&]+)/g;
-        const blacklist = ['facebook.com', 'fbcdn.net', 'pinterest.com', 'pinimg.com', 'instagram.com',
-          'shutterstock.com', 'alamy.com', 'dreamstime.com', 'gettyimages.com', '123rf.com', 'istockphoto.com'];
-        let match, count = 0;
-        while ((match = regex.exec(html)) !== null && count < 30) {
-          const imgUrl = match[1];
-          if (!blacklist.some(d => imgUrl.toLowerCase().includes(d)) && !results.some(r => r.url === imgUrl)) {
-            results.push({ title: `Image ${count + 1}`, url: imgUrl, source: 'Web Search' });
-            count++;
-          }
-        }
-      } catch {}
-    }
-
-    res.json({ results });
-  } catch (err) { sendError(res, err, 'GET /search-icons'); }
 });
 
 module.exports = router;

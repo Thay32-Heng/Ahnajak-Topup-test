@@ -200,36 +200,14 @@ const AdminPage: React.FC = () => {
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [editPaymentData, setEditPaymentData] = useState<{ name: string; icon: string }>({ name: "", icon: "" });
 
-  // Icon Search states
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Array<{ title: string; url: string; source: string }>>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [onSelectImage, setOnSelectImage] = useState<((url: string) => void) | null>(null);
-
-  const handleSearch = async (queryParam?: string) => {
-    const q = queryParam !== undefined ? queryParam : searchQuery;
-    if (!q.trim()) return;
-    setIsSearching(true);
-    try {
-      const { data } = await api.get(`/search-icons?q=${encodeURIComponent(q)}`);
-      setSearchResults((data as any)?.results || []);
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Failed to search images", variant: "destructive" });
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   const triggerSearch = (initialQuery: string, callback: (url: string) => void) => {
     setSearchQuery(initialQuery);
-    setSearchResults([]);
     setOnSelectImage(() => callback);
     setSearchModalOpen(true);
-    if (initialQuery.trim()) {
-      handleSearch(initialQuery);
-    }
   };
 
   const handleUpdateSettings = (key: string, value: string | number | string[]) => {
@@ -3163,12 +3141,12 @@ const AdminPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search Modal */}
+      {/* Image URL Input Modal */}
       {searchModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-foreground">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden text-foreground">
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <h3 className="font-bold text-lg text-white">Search Game Logo / Package Icon</h3>
+              <h3 className="font-bold text-lg text-white">Paste Image URL</h3>
               <button
                 onClick={() => setSearchModalOpen(false)}
                 className="p-1 rounded-lg hover:bg-zinc-800 transition-colors text-white"
@@ -3177,99 +3155,46 @@ const AdminPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-4 border-b border-zinc-800 flex gap-2">
-              <div className="relative flex-1">
-                <Input
-                  placeholder="Type search terms..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSearch();
-                  }}
-                  className="bg-zinc-900 border-zinc-800 rounded-xl text-white"
-                />
-              </div>
-              <Button onClick={() => handleSearch()} disabled={isSearching} className="rounded-xl">
-                {isSearching ? 'Searching...' : 'Search'}
-              </Button>
-            </div>
+            <div className="p-4 space-y-4">
+              <Input
+                placeholder="Paste image URL here..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-zinc-900 border-zinc-800 rounded-xl text-white"
+              />
 
-            <div className="flex-1 overflow-y-auto p-4 bg-zinc-900/50">
-              {/* Direct Link Detector */}
               {searchQuery.trim().match(/^https?:\/\//i) && (
-                <div className="p-3 mb-4 bg-gold/10 border border-gold/30 rounded-xl flex items-center justify-between gap-3 animate-fade-in">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-xs text-gold font-bold block mb-0.5">Detect Direct Image Link</span>
-                    <p className="text-xs text-zinc-300 truncate font-mono">{searchQuery.trim()}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      if (onSelectImage) onSelectImage(searchQuery.trim());
-                      setSearchModalOpen(false);
+                <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900/50">
+                  <img
+                    src={searchQuery.trim()}
+                    alt="Preview"
+                    className="w-full h-48 object-contain p-2"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
                     }}
-                    className="bg-gold hover:bg-gold-dark text-black font-bold text-xs shrink-0"
-                  >
-                    Select Direct Link
-                  </Button>
+                  />
                 </div>
               )}
 
-              {isSearching ? (
-                <div className="flex justify-center items-center h-48">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : searchResults.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground text-sm">
-                  {searchQuery.trim().match(/^https?:\/\//i)
-                    ? 'Press "Select Direct Link" above to use your link.'
-                    : 'No search results yet. Type a query and click search.'}
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                  {searchResults.map((result, i) => (
-                    <div
-                      key={i}
-                      className="group relative cursor-pointer border border-zinc-800 hover:border-primary rounded-xl overflow-hidden bg-zinc-950 aspect-square flex flex-col items-center justify-center p-1 transition-all hover:scale-[1.02] hover:shadow-md"
-                    >
-                      <div
-                        className="w-full h-full flex items-center justify-center"
-                        onClick={() => {
-                          if (onSelectImage) {
-                            onSelectImage(result.url);
-                          }
-                          setSearchModalOpen(false);
-                        }}
-                      >
-                        <img
-                          src={`/api/proxy-image?url=${encodeURIComponent(result.url)}`}
-                          alt={result.title}
-                          className="w-full h-full object-contain rounded-lg"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-
-                      {/* Hover action bar showing the direct link copy button */}
-                      <div className="absolute inset-x-0 bottom-0 bg-black/90 p-1 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1 items-center justify-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(result.url);
-                            toast({ title: "Link copied!" });
-                          }}
-                          className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-[8px] text-white font-bold transition-colors w-full text-center truncate"
-                          title={result.url}
-                        >
-                          Copy URL
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    if (onSelectImage) onSelectImage(searchQuery.trim());
+                    setSearchModalOpen(false);
+                  }}
+                  disabled={!searchQuery.trim()}
+                  className="flex-1 rounded-xl bg-gold hover:bg-gold-dark text-black font-bold"
+                >
+                  Use This URL
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSearchModalOpen(false)}
+                  className="rounded-xl"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
           </div>
         </div>

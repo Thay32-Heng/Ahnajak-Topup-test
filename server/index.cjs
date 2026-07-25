@@ -107,7 +107,7 @@ app.use('/api/ahnajak-khqr', require('./routes/ahnajak-khqr.cjs'));
 app.use('/api/ikhode-payment', require('./routes/ikhode.cjs'));
 app.use('/api/update-prices', require('./routes/prices.cjs'));
 
-// Misc (proxy-image, search-icons + edge function aliases like get-ikhode-public-config, khqrcc-payment, etc.)
+// Misc (edge function aliases: get-ikhode-public-config, khqrcc-payment, etc.)
 app.use('/api', require('./routes/misc.cjs'));
 
 // ── Auto-migration ───────────────────────────────────────────────────────────
