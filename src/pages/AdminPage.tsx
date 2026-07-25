@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from "react";
+﻿import React, { useState, useCallback, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
 import {
@@ -28,6 +28,7 @@ import {
   Shield,
   Star,
   Database,
+  GripVertical,
   Type,
   Copy,
   Calendar,
@@ -67,6 +68,20 @@ import PackageStockBadge from "@/components/admin/PackageStockBadge";
 import DatabaseExportImport from "@/components/admin/DatabaseExportImport";
 import FontSettingsTab from "@/components/admin/FontSettingsTab";
 import { useG2BulkProductStatus } from "@/hooks/useG2BulkProductStatus";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import api from "@/lib/api";
 import EventsTab from "@/components/admin/EventsTab";
 import EventBannersTab from "@/components/admin/EventBannersTab";
@@ -93,7 +108,6 @@ const AdminPage: React.FC = () => {
     addGame,
     updateGame,
     deleteGame,
-    moveGame,
     addPaymentMethod,
     updatePaymentMethod,
     deletePaymentMethod,
@@ -106,6 +120,51 @@ const AdminPage: React.FC = () => {
     deleteSpecialPackage,
     moveSpecialPackage,
   } = useSite();
+
+  // ── Drag & drop reorder ──────────────────────────────────────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const [localGames, setLocalGames] = useState(games);
+  useEffect(() => { setLocalGames(games); }, [games]);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = localGames.findIndex(g => g.id === active.id);
+    const newIndex = localGames.findIndex(g => g.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = [...localGames];
+    reordered.splice(newIndex, 0, reordered.splice(oldIndex, 1)[0]);
+    setLocalGames(reordered);
+    try {
+      await api.put('/games/reorder', { order: reordered.map(g => g.id) });
+      refreshGames();
+    } catch (e: any) {
+      toast({ title: 'Failed to reorder', description: e.message, variant: 'destructive' });
+      setLocalGames(games);
+    }
+  };
+
+  const SortableGameCard = ({ game, children, isDragDisabled }: { game: any; children: React.ReactNode; isDragDisabled: boolean }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: game.id,
+      disabled: isDragDisabled,
+    });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+      position: 'relative' as const,
+    };
+    return (
+      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+        {children}
+      </div>
+    );
+  };
+  // ──────────────────────────────────────────────────────────────────────
 
   // G2Bulk product status hook for stock warnings
   const { productStatuses, checkProductStatus } = useG2BulkProductStatus();
@@ -1958,11 +2017,17 @@ const AdminPage: React.FC = () => {
                   )}
                 </div>
 
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={localGames.map(g => g.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-4">
-                  {games.filter(game =>
-                    !gameSearch.trim() || (game.name || '').toLowerCase().includes(gameSearch.toLowerCase())
+                  {(gameSearch.trim()
+                    ? localGames.filter(game =>
+                        (game.name || '').toLowerCase().includes(gameSearch.toLowerCase())
+                      )
+                    : localGames
                   ).map((game) => (
-                    <Card key={game.id} className="border-gold/30">
+                    <SortableGameCard key={game.id} game={game} isDragDisabled={!!editingGame}>
+                    <Card className="border-gold/30">
                       <CardContent className="p-4">
                         {editingGame === game.id ? (
                           <div className="space-y-4">
@@ -2113,25 +2178,8 @@ const AdminPage: React.FC = () => {
                                 </div>
                               </div>
                               <div className="flex gap-2">
-                                <div className="flex flex-col gap-1">
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="border-gold/50 h-7 w-7"
-                                    onClick={() => moveGame(game.id, "up")}
-                                    disabled={games.findIndex((g) => g.id === game.id) === 0}
-                                  >
-                                    <ArrowUp className="w-3 h-3" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="border-gold/50 h-7 w-7"
-                                    onClick={() => moveGame(game.id, "down")}
-                                    disabled={games.findIndex((g) => g.id === game.id) === games.length - 1}
-                                  >
-                                    <ArrowDown className="w-3 h-3" />
-                                  </Button>
+                              <div className="flex items-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors">
+                                  <GripVertical className="w-5 h-5" />
                                 </div>
                                 <Button
                                   variant="outline"
@@ -3070,8 +3118,11 @@ const AdminPage: React.FC = () => {
                         )}
                       </CardContent>
                     </Card>
+                    </SortableGameCard>
                   ))}
                 </div>
+                </SortableContext>
+                </DndContext>
               </div>
               </TabsContent>
 

@@ -80,6 +80,18 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   } catch (err) { sendError(res, err, 'DELETE /games/:id'); }
 });
 
+// Reorder games (batch) (admin)
+router.put('/reorder', requireAdmin, async (req, res) => {
+  const { order } = req.body;
+  if (!Array.isArray(order) || !order.length) return res.status(400).json({ error: 'order array required' });
+  try {
+    for (let i = 0; i < order.length; i++) {
+      await query('UPDATE games SET sort_order = ? WHERE id = ?', [i, order[i]]);
+    }
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'PUT /games/reorder'); }
+});
+
 // Move game (swap sort_order) (admin)
 router.post('/:id/move', requireAdmin, async (req, res) => {
   const { id } = req.params;
