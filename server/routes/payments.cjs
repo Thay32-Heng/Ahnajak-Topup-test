@@ -98,16 +98,27 @@ router.put('/:slug', requireAuth, requireAdmin, async (req, res) => {
 
 // ── Create payment URL (KHQRcc / ABA Pay) ─────────────────────────────────
 // Also aliased as /api/khqrcc-payment for frontend compatibility
-router.post('/create-payment', async (req, res) => {
+router.post('/create-payment', requireAuth, async (req, res) => {
   req.body = { ...req.body, action: 'create-payment' };
   return handleCreatePayment(req, res);
 });
-router.post('/khqrcc-payment', async (req, res) => {
+router.post('/khqrcc-payment', requireAuth, async (req, res) => {
   return handleCreatePayment(req, res);
 });
 
 async function handleCreatePayment(req, res) {
   const { orderId, amount, remark } = req.body;
+  if (!orderId) return res.status(400).json({ error: 'orderId required' });
+
+  // Validate amount against database order
+  const dbOrder = await queryOne('SELECT amount FROM topup_orders WHERE id = ?', [orderId]);
+  if (!dbOrder) return res.status(404).json({ error: 'Order not found' });
+  const dbAmount = parseFloat(dbOrder.amount);
+  const reqAmount = parseFloat(amount);
+  if (!Number.isFinite(dbAmount) || !Number.isFinite(reqAmount) || Math.abs(dbAmount - reqAmount) > 0.01) {
+    return res.status(400).json({ error: 'Amount mismatch' });
+  }
+
   const gw = gatewayCache['khqrcc'];
   if (!gw || !gw.config?.secret_key || !gw.config?.profile_id) {
     await refreshGatewayCache();

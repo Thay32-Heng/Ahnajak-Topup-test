@@ -27,10 +27,13 @@ async function processWalletTransaction(userId, type, amount, description = null
     const [rows] = await conn.query('SELECT wallet_balance FROM profiles WHERE user_id = ? FOR UPDATE', [userId]);
     if (!rows.length) throw new Error('User profile not found');
 
-    const currentBalance = parseFloat(rows[0].wallet_balance || 0);
-    const newBalance = currentBalance + parseFloat(amount);
+    const parsedAmt = parseFloat(amount);
+    if (!Number.isFinite(parsedAmt)) throw new Error('Invalid amount');
 
-    if (parseFloat(amount) < 0 && newBalance < 0) {
+    const currentBalance = parseFloat(rows[0].wallet_balance || 0);
+    const newBalance = currentBalance + parsedAmt;
+
+    if (parsedAmt < 0 && newBalance < 0) {
       throw new Error('Insufficient balance');
     }
 
@@ -55,9 +58,9 @@ async function processWalletTransaction(userId, type, amount, description = null
 // Top up wallet (admin only — with amount cap and mandatory description for audit trail)
 router.post('/topup', requireAuth, requireAdmin, async (req, res) => {
   const { amount, description, reference_id } = req.body;
-  if (!amount) return res.status(400).json({ error: 'amount required' });
+  if (amount == null) return res.status(400).json({ error: 'amount required' });
   const parsedAmount = parseFloat(amount);
-  if (parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be positive' });
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Amount must be a valid positive number' });
   if (parsedAmount > 10000) return res.status(400).json({ error: 'Amount exceeds maximum ($10,000). Contact owner for larger amounts.' });
   if (!description || description.length < 3) return res.status(400).json({ error: 'A description is required for audit purposes' });
   try {

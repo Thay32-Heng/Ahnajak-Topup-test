@@ -5,6 +5,7 @@
  */
 const express = require('express');
 const { query, queryOne } = require('../db.cjs');
+const { requireAuth } = require('../auth.cjs');
 const QRCode = require('qrcode');
 
 const router = express.Router();
@@ -48,7 +49,7 @@ async function markPaid(table, orderId, txId) {
   return result[0].affectedRows > 0;
 }
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const body = req.body;
   const action = body?.action;
   if (!action) return res.status(400).json({ error: 'Missing action' });

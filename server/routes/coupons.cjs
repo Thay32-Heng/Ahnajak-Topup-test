@@ -12,15 +12,20 @@ const router = express.Router();
 
 // Apply coupon (auth — needs user_id to validate ownership)
 router.post('/apply', requireAuth, async (req, res) => {
-  const { code, order_amount } = req.body;
+  const { code, order_amount, order_id } = req.body;
   if (!code) return res.status(400).json({ success: false, message: 'Coupon code required' });
 
   try {
+    // Validate order_id — prevent coupon use without a real order
+    if (!order_id) return res.json({ success: false, message: 'Order ID required' });
+    const targetOrder = await queryOne('SELECT id FROM topup_orders WHERE id = ?', [order_id]);
+    if (!targetOrder) return res.json({ success: false, message: 'Order not found' });
+
     // Atomically mark coupon as used — prevents race condition (double-use)
     const result = await query(
-      `UPDATE coupons SET is_used = 1, used_at = NOW() WHERE code = ? AND user_id = ? AND is_used = 0
+      `UPDATE coupons SET is_used = 1, used_at = NOW(), order_id = ? WHERE code = ? AND user_id = ? AND is_used = 0
        AND (expires_at IS NULL OR expires_at > NOW())`,
-      [code.trim().toUpperCase(), req.user.id]
+      [order_id, code.trim().toUpperCase(), req.user.id]
     );
     if (result[0].affectedRows === 0) {
       return res.json({ success: false, message: 'Invalid, expired, or already used coupon' });

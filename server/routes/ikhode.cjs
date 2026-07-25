@@ -5,6 +5,7 @@
  */
 const express = require('express');
 const { query, queryOne } = require('../db.cjs');
+const { requireAuth } = require('../auth.cjs');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ async function loadConfig() {
   return typeof row.config === 'string' ? JSON.parse(row.config) : row.config || {};
 }
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const cfg = await loadConfig();
   if (!cfg) return res.json({ success: false, error: 'IKhode gateway not configured or disabled' });
 
@@ -24,6 +25,15 @@ router.post('/', async (req, res) => {
     if (action === 'generate-qr') {
       const { orderId, amount } = params;
       if (!orderId || !amount) return res.json({ success: false, error: 'orderId and amount required' });
+
+      // Validate amount against database order to prevent tampering
+      const order = await queryOne('SELECT amount FROM topup_orders WHERE id = ?', [orderId]);
+      if (!order) return res.json({ success: false, error: 'Order not found' });
+      const dbAmount = parseFloat(order.amount);
+      const reqAmount = parseFloat(amount);
+      if (!Number.isFinite(dbAmount) || !Number.isFinite(reqAmount) || Math.abs(dbAmount - reqAmount) > 0.01) {
+        return res.json({ success: false, error: 'Amount mismatch' });
+      }
 
       const nodeApiUrl = cfg.node_api_url;
       const webhookSecret = cfg.webhook_secret;

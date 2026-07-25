@@ -9,7 +9,7 @@
  */
 const express = require('express');
 const { query, queryOne, uuid } = require('../db.cjs');
-const { optionalAuth } = require('../auth.cjs');
+const { requireAuth, optionalAuth, hasRole } = require('../auth.cjs');
 const { sendError } = require('../helpers/errors.cjs');
 
 const router = express.Router();
@@ -407,8 +407,14 @@ router.post('/', optionalAuth, async (req, res) => {
   const body = req.body;
 
   try {
-    // Action: fulfill
+    // Action: fulfill (requires auth + ownership or admin)
     if (body.action === 'fulfill' && body.orderId) {
+      if (!req.user) return res.status(401).json({ success: false, error: 'Authentication required' });
+      const order = await queryOne('SELECT user_id FROM topup_orders WHERE id = ?', [body.orderId]);
+      const isAdmin = await hasRole(req.user.id, 'admin');
+      if (order && order.user_id && order.user_id !== req.user.id && !isAdmin) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
       const isPreorder = body.isPreorder === true;
       const tableName = isPreorder ? 'preorder_orders' : 'topup_orders';
 
@@ -425,8 +431,9 @@ router.post('/', optionalAuth, async (req, res) => {
       return res.json(result);
     }
 
-    // Action: check_status
+    // Action: check_status (requires auth)
     if (body.action === 'check_status' && body.orderId) {
+      if (!req.user) return res.status(401).json({ success: false, error: 'Authentication required' });
       const result = await checkG2BulkOrderStatus(body.orderId);
       return res.json(result);
     }
@@ -434,6 +441,12 @@ router.post('/', optionalAuth, async (req, res) => {
     // Create order (default action)
     const { game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, is_preorder, scheduled_fulfill_at } = body;
 
+    if (!game_name || !package_name || !player_id) {
+      return res.status(400).json({ success: false, error: 'game_name, package_name, and player_id are required' });
+    }
+    if (String(player_id).length > 100) {
+      return res.status(400).json({ success: false, error: 'player_id too long' });
+    }
     if (is_preorder && !req.user) {
       return res.status(401).json({ success: false, error: 'Authentication required for pre-order checkout' });
     }

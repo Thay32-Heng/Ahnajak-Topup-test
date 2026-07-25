@@ -39,10 +39,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting on auth endpoints
+// Rate limiting
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
+  message: { error: 'Too many requests — please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const financialLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
   message: { error: 'Too many requests — please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -80,17 +87,17 @@ app.use('/api/events', require('./routes/events.cjs'));
 app.use('/api/event-banners', require('./routes/event-banners.cjs'));
 
 // Coupons (apply_coupon RPC replacement)
-app.use('/api/coupons', require('./routes/coupons.cjs'));
+app.use('/api/coupons', financialLimiter, require('./routes/coupons.cjs'));
 
 // Points (exchange_points_for_coupon RPC replacement)
-app.use('/api/points', require('./routes/points.cjs'));
+app.use('/api/points', financialLimiter, require('./routes/points.cjs'));
 
 // Wallet
 const { router: walletRouter } = require('./routes/wallet.cjs');
-app.use('/api/wallet', walletRouter);
+app.use('/api/wallet', financialLimiter, walletRouter);
 
 // Payments (gateway config, create-payment, webhooks)
-app.use('/api/payments', require('./routes/payments.cjs'));
+app.use('/api/payments', financialLimiter, require('./routes/payments.cjs'));
 
 // Uploads (replaces Supabase Storage)
 app.use('/api/upload', require('./routes/uploads.cjs'));
@@ -101,11 +108,11 @@ app.use('/api/admin', require('./routes/api-configs.cjs'));
 // ── Edge function ports ─────────────────────────────────────────────────────
 // Each replaces a Supabase edge function with the same API contract
 
-app.use('/api/process-topup', require('./routes/process-topup.cjs'));
+app.use('/api/process-topup', financialLimiter, require('./routes/process-topup.cjs'));
 app.use('/api/verify-game-id', require('./routes/verify-game.cjs'));
 app.use('/api/g2bulk-api', require('./routes/g2bulk.cjs'));
-app.use('/api/ahnajak-khqr', require('./routes/ahnajak-khqr.cjs'));
-app.use('/api/ikhode-payment', require('./routes/ikhode.cjs'));
+app.use('/api/ahnajak-khqr', financialLimiter, require('./routes/ahnajak-khqr.cjs'));
+app.use('/api/ikhode-payment', financialLimiter, require('./routes/ikhode.cjs'));
 app.use('/api/update-prices', require('./routes/prices.cjs'));
 
 // Image search (SerpApi Google Images)
