@@ -45,7 +45,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   const hasImages = allImages.length > 0;
   const hasMultipleImages = allImages.length > 1;
 
-  // Progress bar timer
   const startProgress = useCallback(() => {
     if (progressRef.current) clearInterval(progressRef.current);
     setProgress(0);
@@ -98,7 +97,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     };
   }, [api, totalReal, clonedImages.length, startProgress]);
 
-  // Pause progress on hover
   useEffect(() => {
     if (isHovered && progressRef.current) {
       clearInterval(progressRef.current);
@@ -129,7 +127,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
-      {/* Outer Banner Wrapper with matching dark theme border & radius */}
       <div
         className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d0d] shadow-xl"
         onMouseEnter={() => setIsHovered(true)}
@@ -140,7 +137,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
             setApi={setApi}
             opts={{
               loop: false,
-              align: 'start',
+              align: 'center',        // FIXED: center instead of start
             }}
             plugins={hasMultipleImages ? [
               Autoplay({
@@ -159,13 +156,13 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                     key={index}
                     className="basis-full pl-0 relative"
                   >
-                    {/* Clean Centered Image Wrapper with matching dark background */}
-                    <div className="w-full h-[240px] sm:h-[340px] md:h-[420px] flex items-center justify-center p-2 sm:p-4 bg-[#0d0d0d]">
+                    {/* FIXED: removed padding, inner bg, and rounded corners */}
+                    <div className="w-full h-[240px] sm:h-[340px] md:h-[420px]">
                       <img
                         src={imgUrl}
                         alt="Hero Banner"
-                        className="w-full h-full object-contain rounded-xl select-none"
-                        loading="lazy"
+                        className="w-full h-full object-cover select-none"
+                        loading={index === 1 ? 'eager' : 'lazy'}
                       />
                     </div>
                   </CarouselItem>
@@ -173,7 +170,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
               })}
             </CarouselContent>
 
-            {/* Hover Arrow Controls */}
             {hasMultipleImages && (
               <>
                 <button
@@ -195,7 +191,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
               </>
             )}
 
-            {/* Minimal Progress Bar Dots */}
             {hasMultipleImages && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-20 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
                 {allImages.map((_, index) => (
