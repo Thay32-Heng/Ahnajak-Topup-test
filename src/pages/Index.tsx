@@ -74,13 +74,14 @@ const Index: React.FC = () => {
   }, [featuredGames.length, scrollToIndex]);
 
   const filteredGames = useMemo(() => {
-    let result = games;
+    let result = [...games];
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(game =>
         (game.name || '').toLowerCase().includes(query)
       );
     }
+    result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return result;
   }, [games, searchQuery]);
 
