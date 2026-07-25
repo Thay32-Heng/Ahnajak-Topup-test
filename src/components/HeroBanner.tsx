@@ -132,9 +132,9 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   };
 
   return (
-    <div className="w-full py-4 sm:py-8">
+    <div className="w-full">
       <div
-        className="relative overflow-hidden rounded-xl"
+        className="relative overflow-hidden"
         style={{ height: `${slideHeight}px` }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -161,13 +161,13 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 return (
                   <CarouselItem
                     key={index}
-                    className={`h-full pl-0 basis-[90%] sm:basis-[72%] transition-all duration-500 ease-out relative ${isCenter ? 'z-10' : 'z-0'
+                    className={`h-full pl-0 basis-full transition-all duration-500 ease-out relative ${isCenter ? 'z-10' : 'z-0'
                       }`}
                   >
                     <div
-                      className={`w-full h-full rounded-2xl overflow-hidden transition-all duration-500 ease-out relative ${isCenter
-                        ? 'shadow-2xl ring-2 ring-gold/50 scale-100'
-                        : 'shadow-lg scale-[0.92] opacity-50'
+                        className={`w-full h-full overflow-hidden transition-all duration-500 ease-out relative ${isCenter
+                        ? 'scale-100'
+                        : 'opacity-50'
                         }`}
                       style={{ height: `${slideHeight}px` }}
                     >
@@ -175,7 +175,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                       <img
                         src={resolveIconUrl(image)}
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         loading="lazy"
                       />
 
