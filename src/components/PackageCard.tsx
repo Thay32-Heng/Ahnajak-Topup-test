@@ -97,13 +97,11 @@ const PackageCard: React.FC<PackageCardProps> = ({
           </div>
           <div className="mt-1.5 flex items-center">
             <span
-              className="inline-block px-2.5 py-0.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap text-zinc-950 transition-colors"
+              className="inline-block px-2.5 py-0.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap transition-colors"
               style={{
-                backgroundImage: 'url(https://i.pinimg.com/736x/b9/ee/c3/b9eec36215e74a45f4654a6c328a2f11.jpg)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                border: '1px solid #c5861b',
-                ...(settings.packagePriceColor ? { color: settings.packagePriceColor } : {})
+                background: `linear-gradient(135deg, ${primaryColor}, color-mix(in srgb, ${primaryColor} 70%, #000))`,
+                border: `1px solid color-mix(in srgb, ${primaryColor} 50%, transparent)`,
+                color: settings.packagePriceColor || '#ffffff',
               }}
             >
               {settings.packageCurrencySymbol || "$"}{" "}
