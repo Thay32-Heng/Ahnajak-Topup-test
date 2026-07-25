@@ -12,15 +12,13 @@ import { resolveIconUrl } from '@/lib/icon-url';
 interface HeroBannerProps {
   bannerImage?: string;
   bannerImages?: string[];
-  bannerHeight?: number;
   autoplayDelay?: number;
 }
 
 const HeroBanner: React.FC<HeroBannerProps> = ({
   bannerImage,
   bannerImages = [],
-  bannerHeight = 400,
-  autoplayDelay = 5000
+  autoplayDelay = 4000
 }) => {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
@@ -109,8 +107,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     }
   }, [isHovered, hasMultipleImages, startProgress]);
 
-  const slideHeight = bannerHeight;
-
   const goPrev = () => {
     if (!api) return;
     const idx = api.selectedScrollSnap();
@@ -132,10 +128,9 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
       <div
-        className="relative overflow-hidden"
-        style={{ height: `${slideHeight}px` }}
+        className="relative overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/50 shadow-2xl"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -144,7 +139,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
             setApi={setApi}
             opts={{
               loop: false,
-              align: 'center',
+              align: 'start',
             }}
             plugins={hasMultipleImages ? [
               Autoplay({
@@ -153,72 +148,68 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 stopOnMouseEnter: true,
               }),
             ] : []}
-            className="w-full h-full"
+            className="w-full"
           >
-            <CarouselContent className="h-full -ml-0">
+            <CarouselContent className="-ml-0">
               {clonedImages.map((image, index) => {
-                const isCenter = (index - 1) === current;
                 return (
                   <CarouselItem
                     key={index}
-                    className={`h-full pl-0 basis-full transition-all duration-500 ease-out relative ${isCenter ? 'z-10' : 'z-0'
-                      }`}
+                    className="basis-full pl-0 relative"
                   >
-                    <div
-                      className="w-full h-full overflow-hidden"
-                      style={{ height: `${slideHeight}px` }}
-                    >
+                    {/* Responsive aspect ratio container */}
+                    <div className="w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] relative overflow-hidden">
                       <img
                         src={resolveIconUrl(image)}
-                        alt=""
-                        className="w-full h-full object-contain rounded-xl"
+                        alt="Hero Banner"
+                        className="w-full h-full object-cover object-center select-none"
                         loading="lazy"
                       />
 
-                      {/* Gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                      {/* Soft ambient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 pointer-events-none" />
                     </div>
                   </CarouselItem>
                 );
               })}
             </CarouselContent>
 
-            {/* Hover arrows */}
+            {/* Navigation Arrows */}
             {hasMultipleImages && (
               <>
                 <button
                   onClick={goPrev}
-                  className={`absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg transition-all duration-300 hover:bg-white/30 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
+                  className={`absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white shadow-xl transition-all duration-300 hover:bg-black/70 hover:scale-105 active:scale-95 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
                     }`}
                   aria-label="Previous slide"
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
                   onClick={goNext}
-                  className={`absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg transition-all duration-300 hover:bg-white/30 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
+                  className={`absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white shadow-xl transition-all duration-300 hover:bg-black/70 hover:scale-105 active:scale-95 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
                     }`}
                   aria-label="Next slide"
                 >
-                  <ChevronRight className="w-5 h-5" />
+                  <ChevronRight className="w-6 h-6" />
                 </button>
               </>
             )}
 
-            {/* Progress bar indicators */}
+            {/* Progress Bar Indicators */}
             {hasMultipleImages && (
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-20 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
                 {allImages.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => api?.scrollTo(index + 1)}
-                    className="relative h-1 rounded-full overflow-hidden transition-all duration-300"
-                    style={{ width: current === index ? 32 : 12 }}
+                    className="relative h-1.5 rounded-full overflow-hidden transition-all duration-300"
+                    style={{ width: current === index ? 28 : 10 }}
                     aria-label={`Go to slide ${index + 1}`}
                   >
-                    <div className="absolute inset-0 bg-white/30 rounded-full" />
+                    <div className="absolute inset-0 bg-white/20 rounded-full" />
                     <div
-                      className="absolute inset-y-0 left-0 bg-amber-400 rounded-full transition-all"
+                      className="absolute inset-y-0 left-0 bg-red-500 rounded-full transition-all"
                       style={{
                         width: current === index ? `${Math.min(progress, 100)}%` : index < current ? '100%' : '0%',
                         transitionDuration: current === index ? '50ms' : '300ms',
@@ -230,7 +221,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
             )}
           </Carousel>
         ) : (
-          <div className="w-full h-full bg-neutral-900 rounded-2xl animate-pulse" />
+          <div className="w-full aspect-[21/9] bg-neutral-900 animate-pulse rounded-2xl" />
         )}
       </div>
     </div>
