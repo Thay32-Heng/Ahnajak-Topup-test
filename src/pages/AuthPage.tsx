@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, User, MessageCircle, Copy, Check } from 'lucide-react';
+import { Eye, EyeOff, User, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -27,7 +27,6 @@ const AuthPage: React.FC = () => {
   const [botAuthCode, setBotAuthCode] = useState<string | null>(null);
   const [botUsername, setBotUsername] = useState<string | null>(null);
   const [botAuthStatus, setBotAuthStatus] = useState<'idle' | 'loading' | 'pending' | 'confirmed' | 'expired'>('idle');
-  const [copied, setCopied] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const primaryColor = settings.primaryColor || '#E53E3E';
@@ -80,14 +79,6 @@ const AuthPage: React.FC = () => {
       setBotAuthStatus('idle');
     }
     setIsLoading(false);
-  };
-
-  const copyCode = () => {
-    if (botAuthCode) {
-      navigator.clipboard.writeText(botAuthCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -212,26 +203,18 @@ const AuthPage: React.FC = () => {
                   </Button>
                 ) : botAuthStatus === 'pending' && botAuthCode && botUsername ? (
                   <div className="space-y-3 p-4 bg-[#0088cc]/5 border border-[#0088cc]/20 rounded-xl">
-                    <p className="text-xs text-center text-muted-foreground">
-                      Message the bot with the code below:
-                    </p>
                     <a
                       href={`https://t.me/${botUsername}?start=${botAuthCode}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block text-center text-sm font-bold text-[#0088cc] hover:underline"
+                      className="flex items-center justify-center gap-2 w-full rounded-xl py-4 bg-[#0088cc] text-white hover:bg-[#0088cc]/90 transition-colors font-medium text-sm"
+                      onClick={() => {
+                        window.open(`https://t.me/${botUsername}?start=${botAuthCode}`, '_blank');
+                      }}
                     >
-                      @{botUsername}
+                      <MessageCircle className="w-5 h-5" />
+                      Open Telegram
                     </a>
-                    <div className="flex items-center gap-2 bg-background rounded-lg border p-2">
-                      <code className="flex-1 text-center font-bold text-lg tracking-widest">{botAuthCode}</code>
-                      <button
-                        onClick={copyCode}
-                        className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                      >
-                        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
                     <p className="text-xs text-center text-muted-foreground animate-pulse">
                       Waiting for confirmation...
                     </p>
