@@ -19,7 +19,7 @@ interface HeroBannerProps {
 const HeroBanner: React.FC<HeroBannerProps> = ({
   bannerImage,
   bannerImages = [],
-  bannerHeight = 256,
+  bannerHeight = 350, // Increased default height for a taller look
   autoplayDelay = 4000
 }) => {
   const [api, setApi] = useState<CarouselApi>();
@@ -109,7 +109,10 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     }
   }, [isHovered, hasMultipleImages, startProgress]);
 
-  const slideHeight = Math.round(Math.min(bannerHeight, typeof window !== 'undefined' && window.innerWidth < 640 ? 180 : bannerHeight) * 0.85);
+  // Removed 0.85 multiplier to give full height
+  const slideHeight = typeof window !== 'undefined' && window.innerWidth < 640
+    ? Math.min(bannerHeight, 220)
+    : bannerHeight;
 
   const goPrev = () => {
     if (!api) return;
@@ -161,26 +164,27 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 return (
                   <CarouselItem
                     key={index}
-                    className={`h-full pl-0 basis-full transition-all duration-500 ease-out relative ${isCenter ? 'z-10' : 'z-0'
+                    /* Changed basis-full to basis-[70%] to make item span 70% width */
+                    className={`h-full pl-2 pr-2 basis-[70%] transition-all duration-500 ease-out relative ${isCenter ? 'z-10' : 'z-0'
                       }`}
                   >
                     <div
-                        className={`w-full h-full overflow-hidden transition-all duration-500 ease-out relative ${isCenter
-                        ? 'scale-100'
-                        : 'opacity-50'
+                      className={`w-full h-full overflow-hidden rounded-xl transition-all duration-500 ease-out relative ${isCenter
+                          ? 'scale-100 opacity-100'
+                          : 'scale-95 opacity-50'
                         }`}
                       style={{ height: `${slideHeight}px` }}
                     >
-                      {/* Slide image */}
+                      {/* Slide image - Changed to object-cover to stretch properly */}
                       <img
                         src={resolveIconUrl(image)}
                         alt=""
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-cover rounded-xl"
                         loading="lazy"
                       />
 
                       {/* Gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none rounded-xl" />
                     </div>
                   </CarouselItem>
                 );
@@ -220,9 +224,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                     style={{ width: current === index ? 32 : 12 }}
                     aria-label={`Go to slide ${index + 1}`}
                   >
-                    {/* Background track */}
                     <div className="absolute inset-0 bg-white/30 rounded-full" />
-                    {/* Fill */}
                     <div
                       className="absolute inset-y-0 left-0 bg-amber-400 rounded-full transition-all"
                       style={{
@@ -239,8 +241,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
           <div className="w-full h-full bg-neutral-900 rounded-2xl animate-pulse" />
         )}
       </div>
-
-      <style>{``}</style>
     </div>
   );
 };
