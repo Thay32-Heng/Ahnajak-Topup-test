@@ -111,7 +111,16 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const telegramBotUsername = settings.telegramBotUsername || process.env.REACT_APP_TELEGRAM_BOT_USERNAME;
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const [botConfigLoading, setBotConfigLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/auth/bot-config').then(res => {
+      if (res.data?.configured && res.data?.bot_username) {
+        setTelegramBotUsername(res.data.bot_username);
+      }
+    }).catch(() => {}).finally(() => setBotConfigLoading(false));
+  }, []);
 
   return (
     <>
@@ -238,7 +247,7 @@ const AuthPage: React.FC = () => {
 
                 {!telegramBotUsername && botAuthStatus === 'idle' && (
                   <p className="text-xs text-center text-muted-foreground">
-                    Telegram login not configured
+                    {botConfigLoading ? 'Checking...' : 'Telegram login not configured'}
                   </p>
                 )}
               </CardContent>
