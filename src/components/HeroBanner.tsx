@@ -18,7 +18,7 @@ interface HeroBannerProps {
 const HeroBanner: React.FC<HeroBannerProps> = ({
   bannerImage,
   bannerImages = [],
-  autoplayDelay = 4000
+  autoplayDelay = 5000
 }) => {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
@@ -157,7 +157,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                     className="basis-full pl-0 relative"
                   >
                     {/* FIXED: removed padding, inner bg, and rounded corners */}
-                    <div className="w-full h-[240px] sm:h-[340px] md:h-[420px]">
+                    <div className="w-full h-[240px] sm:h-[340px] md:h-[420px] max-h-[50vh]">
                       <img
                         src={imgUrl}
                         alt="Hero Banner"
