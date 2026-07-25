@@ -117,7 +117,7 @@ const Index: React.FC = () => {
         </div>
         {settings.backgroundImage && (
           <>
-            <div 
+            <div
               className="fixed inset-0 -z-20 pointer-events-none"
               style={{
                 backgroundImage: `url(${settings.backgroundImage})`,
@@ -186,20 +186,20 @@ const Index: React.FC = () => {
 
           {/* Header */}
           <div className="mb-5 sm:mb-6 text-center">
-            <div 
+            <div
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold border mb-2 sm:mb-3 animate-pulse"
-              style={{ 
+              style={{
                 backgroundColor: `${primaryColor}10`,
                 color: primaryColor,
                 borderColor: `${primaryColor}25`
               }}
             >
-              <img src="/assets/fire.svg" alt="" className="inline-block w-5 h-5 animate-fire" /> TOP RECHARGES IN CAMBODIA
+              <img src="/assets/fire.svg" alt="" className="" /> TOP RECHARGES IN CAMBODIA
             </div>
             <h2 className="font-display text-xl sm:text-4xl font-black leading-tight text-zinc-900 dark:text-zinc-50 mb-2 sm:mb-3">
               ជ្រើសរើសទំនិញ
             </h2>
-            <div 
+            <div
               className="w-12 h-1 sm:w-16 rounded-full mx-auto"
               style={{ backgroundColor: primaryColor }}
             />
