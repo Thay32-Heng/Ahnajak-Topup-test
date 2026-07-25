@@ -19,8 +19,8 @@ interface HeroBannerProps {
 const HeroBanner: React.FC<HeroBannerProps> = ({
   bannerImage,
   bannerImages = [],
-  bannerHeight = 350, // Increased default height for a taller look
-  autoplayDelay = 4000
+  bannerHeight = 400,
+  autoplayDelay = 5000
 }) => {
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
@@ -109,10 +109,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
     }
   }, [isHovered, hasMultipleImages, startProgress]);
 
-  // Removed 0.85 multiplier to give full height
-  const slideHeight = typeof window !== 'undefined' && window.innerWidth < 640
-    ? Math.min(bannerHeight, 220)
-    : bannerHeight;
+  const slideHeight = bannerHeight;
 
   const goPrev = () => {
     if (!api) return;
@@ -164,27 +161,22 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 return (
                   <CarouselItem
                     key={index}
-                    /* Changed basis-full to basis-[70%] to make item span 70% width */
-                    className={`h-full pl-2 pr-2 basis-[70%] transition-all duration-500 ease-out relative ${isCenter ? 'z-10' : 'z-0'
+                    className={`h-full pl-0 basis-full transition-all duration-500 ease-out relative ${isCenter ? 'z-10' : 'z-0'
                       }`}
                   >
                     <div
-                      className={`w-full h-full overflow-hidden rounded-xl transition-all duration-500 ease-out relative ${isCenter
-                          ? 'scale-100 opacity-100'
-                          : 'scale-95 opacity-50'
-                        }`}
+                      className="w-full h-full overflow-hidden"
                       style={{ height: `${slideHeight}px` }}
                     >
-                      {/* Slide image - Changed to object-cover to stretch properly */}
                       <img
                         src={resolveIconUrl(image)}
                         alt=""
-                        className="w-full h-full object-cover rounded-xl"
+                        className="w-full h-full object-contain rounded-xl"
                         loading="lazy"
                       />
 
                       {/* Gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none rounded-xl" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
                     </div>
                   </CarouselItem>
                 );
