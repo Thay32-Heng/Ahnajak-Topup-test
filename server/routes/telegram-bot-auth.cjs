@@ -11,7 +11,7 @@ function generateAuthCode() {
 }
 
 // Get bot config (username, availability)
-router.get('/bot-auth/config', (req, res) => {
+router.get('/bot-config', (req, res) => {
   const botUsername = process.env.TELEGRAM_BOT_USERNAME || '';
   const botConfigured = !!(process.env.TELEGRAM_BOT_USERNAME && process.env.TELEGRAM_BOT_TOKEN);
   res.json({ bot_username: botUsername, configured: botConfigured });
