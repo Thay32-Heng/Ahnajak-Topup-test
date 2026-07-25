@@ -118,6 +118,9 @@ app.use('/api/update-prices', require('./routes/prices.cjs'));
 // Image search (SerpApi Google Images)
 app.use('/api', require('./routes/image-search.cjs'));
 
+// Telegram bot auth (login via bot /start)
+app.use('/api/auth', require('./routes/telegram-bot-auth.cjs'));
+
 // Misc (edge function aliases: get-ikhode-public-config, khqrcc-payment, etc.)
 app.use('/api', require('./routes/misc.cjs'));
 
@@ -136,8 +139,17 @@ const { pool } = require('./db.cjs');
       created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )`);
+    await conn.query(`CREATE TABLE IF NOT EXISTS telegram_auth_codes (
+      id                CHAR(36)     NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+      auth_code         VARCHAR(20)  NOT NULL UNIQUE,
+      telegram_id       VARCHAR(50)  DEFAULT NULL,
+      telegram_username VARCHAR(255) DEFAULT NULL,
+      status            ENUM('pending','confirmed','expired') NOT NULL DEFAULT 'pending',
+      created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      confirmed_at      DATETIME     DEFAULT NULL
+    )`);
     conn.release();
-    console.log('  ✓ Auto-migration: event_banners table ready');
+    console.log('  ✓ Auto-migration: event_banners + telegram_auth_codes tables ready');
   } catch (err) {
     console.error('  ✗ Auto-migration failed:', err.message);
   }

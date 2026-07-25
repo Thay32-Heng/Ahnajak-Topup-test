@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, User, MessageCircle } from 'lucide-react';
+import { Eye, EyeOff, User, MessageCircle, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSite } from '@/contexts/SiteContext';
 import { toast } from '@/hooks/use-toast';
+import api from '@/lib/api';
 import KhmerFrame from '@/components/KhmerFrame';
 import Header from '@/components/Header';
 import HeaderSpacer from '@/components/HeaderSpacer';
@@ -23,24 +24,13 @@ const AuthPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const primaryColor = settings.primaryColor || '#E53E3E';
+  const [botAuthCode, setBotAuthCode] = useState<string | null>(null);
+  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [botAuthStatus, setBotAuthStatus] = useState<'idle' | 'loading' | 'pending' | 'confirmed' | 'expired'>('idle');
+  const [copied, setCopied] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Process Telegram login (shared by popup and redirect-back)
-  const processTelegramLogin = async (data: any) => {
-    if (!data || data.error) return;
-    setIsLoading(true);
-    try {
-      const { error } = await signIn('telegram-oidc', { id_token: data.id_token, user: data.user });
-      if (error) {
-        toast({ title: 'Telegram Login Failed', description: error.message, variant: 'destructive' });
-      } else {
-        toast({ title: 'Welcome!' });
-        navigate('/');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const primaryColor = settings.primaryColor || '#E53E3E';
 
   useEffect(() => {
     if (user) {
@@ -49,60 +39,54 @@ const AuthPage: React.FC = () => {
     }
   }, [user, navigate, searchParams]);
 
-  // Load Telegram OIDC library for desktop popup
   useEffect(() => {
-    const clientId = settings.telegramClientId;
-    if (!clientId) return;
-
-    (window as any).onTelegramAuth = async (data: any) => {
-      await processTelegramLogin(data);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
     };
+  }, []);
 
-    if (document.querySelector('script[src*="telegram-login"]')) return;
-    const s = document.createElement('script');
-    s.src = 'https://oauth.telegram.org/js/telegram-login.js?5';
-    s.async = true;
-    s.setAttribute('data-client-id', clientId);
-    s.setAttribute('data-onauth', 'onTelegramAuth');
-    document.body.appendChild(s);
-  }, [settings.telegramClientId]);
+  const handleBotAuth = async () => {
+    setIsLoading(true);
+    setBotAuthStatus('loading');
+    try {
+      const { data } = await api.post('/auth/bot-auth/init');
+      if ((data as any)?.auth_code) {
+        setBotAuthCode((data as any).auth_code);
+        setBotUsername((data as any).bot_username);
+        setBotAuthStatus('pending');
 
-  const handleTelegramLogin = () => {
-    const clientId = settings.telegramClientId;
-    if (!clientId) return;
-
-    const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    if (isMobile) {
-      // Use OIDC Authorization Code flow (full-page redirect, works on mobile)
-      const state = crypto.randomUUID?.() || Math.random().toString(36).substring(2, 15);
-      sessionStorage.setItem('tg_oauth_state', state);
-
-      const frontendOrigin = window.location.origin;
-      const redirectUri = `${frontendOrigin}/api/auth/telegram-callback`;
-
-      const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        scope: 'openid profile',
-        state: state,
-      });
-
-      window.location.href = `https://oauth.telegram.org/auth?${params}`;
-    } else {
-      // Desktop: use popup via Telegram OIDC library
-      const lib = (window as any).Telegram?.Login;
-      if (!lib) {
-        toast({ title: 'Telegram login loading...', description: 'Please wait a moment and try again.', variant: 'destructive' });
-        return;
+        // Start polling
+        pollRef.current = setInterval(async () => {
+          try {
+            const { data: statusData } = await api.get(`/auth/bot-auth/status?code=${(data as any).auth_code}`);
+            const s = statusData as any;
+            if (s.status === 'confirmed' && s.token) {
+              setBotAuthStatus('confirmed');
+              if (pollRef.current) clearInterval(pollRef.current);
+              localStorage.setItem('auth_token', s.token);
+              localStorage.setItem('auth_user', JSON.stringify(s.user));
+              toast({ title: 'Welcome!' });
+              window.location.href = '/';
+            } else if (s.status === 'expired') {
+              setBotAuthStatus('expired');
+              if (pollRef.current) clearInterval(pollRef.current);
+              toast({ title: 'Code expired', description: 'Please try again', variant: 'destructive' });
+            }
+          } catch {}
+        }, 2000);
       }
-      lib.auth(
-        { client_id: Number(clientId), scope: ['profile', 'write'] },
-        async (data: any) => {
-          await processTelegramLogin(data);
-        }
-      );
+    } catch (e: any) {
+      toast({ title: 'Failed to start login', description: e.message, variant: 'destructive' });
+      setBotAuthStatus('idle');
+    }
+    setIsLoading(false);
+  };
+
+  const copyCode = () => {
+    if (botAuthCode) {
+      navigator.clipboard.writeText(botAuthCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -112,11 +96,9 @@ const AuthPage: React.FC = () => {
       toast({ title: 'Validation Error', description: 'Email and password are required', variant: 'destructive' });
       return;
     }
-
     setIsLoading(true);
     const { error } = await signIn(email, password);
     setIsLoading(false);
-
     if (error) {
       toast({
         title: 'Sign In Failed',
@@ -128,6 +110,8 @@ const AuthPage: React.FC = () => {
       navigate('/');
     }
   };
+
+  const telegramBotUsername = settings.telegramBotUsername || process.env.REACT_APP_TELEGRAM_BOT_USERNAME;
 
   return (
     <>
@@ -206,28 +190,57 @@ const AuthPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-center">
-                  {settings.telegramClientId ? (
-                    <Button
-                      variant="outline"
-                      className="w-full flex items-center justify-center gap-2 rounded-xl py-6 border-[#0088cc]/30 hover:bg-[#0088cc]/5"
-                      onClick={handleTelegramLogin}
-                      disabled={isLoading}
+                {/* Bot Auth */}
+                {botAuthStatus === 'idle' || botAuthStatus === 'loading' ? (
+                  <Button
+                    variant="outline"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl py-6 border-[#0088cc]/30 hover:bg-[#0088cc]/5"
+                    onClick={handleBotAuth}
+                    disabled={isLoading || !telegramBotUsername}
+                  >
+                    <MessageCircle className="w-5 h-5 text-[#0088cc]" />
+                    <span>{isLoading ? 'Connecting...' : 'Login with Telegram'}</span>
+                  </Button>
+                ) : botAuthStatus === 'pending' && botAuthCode && botUsername ? (
+                  <div className="space-y-3 p-4 bg-[#0088cc]/5 border border-[#0088cc]/20 rounded-xl">
+                    <p className="text-xs text-center text-muted-foreground">
+                      Message the bot with the code below:
+                    </p>
+                    <a
+                      href={`https://t.me/${botUsername}?start=${botAuthCode}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-center text-sm font-bold text-[#0088cc] hover:underline"
                     >
-                      <MessageCircle className="w-5 h-5 text-[#0088cc]" />
-                      <span>Sign In with Telegram</span>
+                      @{botUsername}
+                    </a>
+                    <div className="flex items-center gap-2 bg-background rounded-lg border p-2">
+                      <code className="flex-1 text-center font-bold text-lg tracking-widest">{botAuthCode}</code>
+                      <button
+                        onClick={copyCode}
+                        className="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground animate-pulse">
+                      Waiting for confirmation...
+                    </p>
+                  </div>
+                ) : botAuthStatus === 'expired' ? (
+                  <div className="text-center">
+                    <p className="text-xs text-destructive mb-2">Code expired</p>
+                    <Button variant="outline" size="sm" onClick={() => setBotAuthStatus('idle')}>
+                      Try Again
                     </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      className="w-full flex items-center justify-center gap-2 rounded-xl py-6 border-[#0088cc]/30 hover:bg-[#0088cc]/5"
-                      onClick={() => toast({ title: 'Telegram login not configured', description: 'Contact the administrator to enable Telegram login.' })}
-                    >
-                      <MessageCircle className="w-5 h-5 text-[#0088cc]" />
-                      <span>Login with Telegram</span>
-                    </Button>
-                  )}
-                </div>
+                  </div>
+                ) : null}
+
+                {!telegramBotUsername && botAuthStatus === 'idle' && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    Telegram login not configured
+                  </p>
+                )}
               </CardContent>
             </Card>
           </KhmerFrame>
