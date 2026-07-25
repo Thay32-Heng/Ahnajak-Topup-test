@@ -130,7 +130,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
       <div
-        className="relative overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/50 shadow-2xl"
+        className="relative overflow-hidden rounded-2xl border border-white/10 bg-neutral-950 shadow-2xl"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -152,22 +152,32 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
           >
             <CarouselContent className="-ml-0">
               {clonedImages.map((image, index) => {
+                const imgUrl = resolveIconUrl(image);
                 return (
                   <CarouselItem
                     key={index}
                     className="basis-full pl-0 relative"
                   >
-                    {/* Responsive aspect ratio container */}
-                    <div className="w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] relative overflow-hidden">
+                    {/* Responsive Container */}
+                    <div className="w-full h-[220px] sm:h-[320px] md:h-[400px] relative overflow-hidden flex items-center justify-center">
+
+                      {/* 1. Blurred Background Image (Fills gaps auto-optimized) */}
                       <img
-                        src={resolveIconUrl(image)}
-                        alt="Hero Banner"
-                        className="w-full h-full object-cover object-center select-none"
+                        src={imgUrl}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover blur-2xl scale-125 opacity-40 select-none pointer-events-none"
+                      />
+
+                      {/* 2. Main Auto-Fit Image */}
+                      <img
+                        src={imgUrl}
+                        alt="Banner"
+                        className="relative z-10 max-w-full max-h-full object-contain rounded-xl shadow-lg select-none"
                         loading="lazy"
                       />
 
-                      {/* Soft ambient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 pointer-events-none" />
+                      {/* 3. Smooth Vignette Edge */}
+                      <div className="absolute inset-0 z-15 bg-gradient-to-t from-neutral-950/80 via-transparent to-neutral-950/20 pointer-events-none" />
                     </div>
                   </CarouselItem>
                 );
@@ -179,7 +189,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
               <>
                 <button
                   onClick={goPrev}
-                  className={`absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white shadow-xl transition-all duration-300 hover:bg-black/70 hover:scale-105 active:scale-95 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
+                  className={`absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/15 flex items-center justify-center text-white shadow-xl transition-all duration-300 hover:bg-black/80 hover:scale-105 active:scale-95 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
                     }`}
                   aria-label="Previous slide"
                 >
@@ -187,7 +197,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
                 </button>
                 <button
                   onClick={goNext}
-                  className={`absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/15 flex items-center justify-center text-white shadow-xl transition-all duration-300 hover:bg-black/70 hover:scale-105 active:scale-95 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
+                  className={`absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/15 flex items-center justify-center text-white shadow-xl transition-all duration-300 hover:bg-black/80 hover:scale-105 active:scale-95 ${isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
                     }`}
                   aria-label="Next slide"
                 >
@@ -198,7 +208,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
 
             {/* Progress Bar Indicators */}
             {hasMultipleImages && (
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-20 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-30 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
                 {allImages.map((_, index) => (
                   <button
                     key={index}
@@ -221,7 +231,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
             )}
           </Carousel>
         ) : (
-          <div className="w-full aspect-[21/9] bg-neutral-900 animate-pulse rounded-2xl" />
+          <div className="w-full h-[350px] bg-neutral-900 animate-pulse rounded-2xl" />
         )}
       </div>
     </div>
