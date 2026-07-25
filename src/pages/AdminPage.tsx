@@ -202,12 +202,33 @@ const AdminPage: React.FC = () => {
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{ title: string; url: string; thumbnail?: string; source: string }>>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTab, setSearchTab] = useState<'search' | 'url'>('search');
   const [onSelectImage, setOnSelectImage] = useState<((url: string) => void) | null>(null);
+
+  const handleImageSearch = async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setIsSearching(true);
+    setSearchResults([]);
+    try {
+      const { data } = await api.get(`/search-images?q=${encodeURIComponent(q)}`);
+      setSearchResults((data as any)?.results || []);
+    } catch (e) {
+      console.error(e);
+      toast({ title: 'Search failed', description: 'Check SERPAPI_API_KEY in .env', variant: 'destructive' });
+    }
+    setIsSearching(false);
+  };
 
   const triggerSearch = (initialQuery: string, callback: (url: string) => void) => {
     setSearchQuery(initialQuery);
+    setSearchResults([]);
+    setSearchTab('search');
     setOnSelectImage(() => callback);
     setSearchModalOpen(true);
+    if (initialQuery.trim()) handleImageSearch();
   };
 
   const handleUpdateSettings = (key: string, value: string | number | string[]) => {
@@ -3141,12 +3162,12 @@ const AdminPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Image URL Input Modal */}
+      {/* Image Search Modal */}
       {searchModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden text-foreground">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-foreground">
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <h3 className="font-bold text-lg text-white">Paste Image URL</h3>
+              <h3 className="font-bold text-lg text-white">Search Image</h3>
               <button
                 onClick={() => setSearchModalOpen(false)}
                 className="p-1 rounded-lg hover:bg-zinc-800 transition-colors text-white"
@@ -3155,47 +3176,113 @@ const AdminPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
-              <Input
-                placeholder="Paste image URL here..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-zinc-900 border-zinc-800 rounded-xl text-white"
-              />
-
-              {searchQuery.trim().match(/^https?:\/\//i) && (
-                <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900/50">
-                  <img
-                    src={searchQuery.trim()}
-                    alt="Preview"
-                    className="w-full h-48 object-contain p-2"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => {
-                    if (onSelectImage) onSelectImage(searchQuery.trim());
-                    setSearchModalOpen(false);
-                  }}
-                  disabled={!searchQuery.trim()}
-                  className="flex-1 rounded-xl bg-gold hover:bg-gold-dark text-black font-bold"
-                >
-                  Use This URL
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setSearchModalOpen(false)}
-                  className="rounded-xl"
-                >
-                  Cancel
-                </Button>
-              </div>
+            {/* Tabs */}
+            <div className="flex border-b border-zinc-800">
+              <button
+                onClick={() => setSearchTab('search')}
+                className={`flex-1 py-3 text-sm font-bold transition-colors ${searchTab === 'search' ? 'text-gold border-b-2 border-gold' : 'text-zinc-400 hover:text-white'}`}
+              >
+                Google Search
+              </button>
+              <button
+                onClick={() => setSearchTab('url')}
+                className={`flex-1 py-3 text-sm font-bold transition-colors ${searchTab === 'url' ? 'text-gold border-b-2 border-gold' : 'text-zinc-400 hover:text-white'}`}
+              >
+                Paste URL
+              </button>
             </div>
+
+            {searchTab === 'search' ? (
+              <>
+                <div className="p-4 border-b border-zinc-800 flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      placeholder="Search Google Images..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleImageSearch(); }}
+                      className="bg-zinc-900 border-zinc-800 rounded-xl text-white"
+                    />
+                  </div>
+                  <Button onClick={handleImageSearch} disabled={isSearching} className="rounded-xl">
+                    {isSearching ? 'Searching...' : 'Search'}
+                  </Button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 bg-zinc-900/50">
+                  {isSearching ? (
+                    <div className="flex justify-center items-center h-48">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground text-sm">
+                      Type a query and press Search.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                      {searchResults.map((result, i) => (
+                        <div
+                          key={i}
+                          className="group relative cursor-pointer border border-zinc-800 hover:border-gold rounded-xl overflow-hidden bg-zinc-950 aspect-square flex flex-col items-center justify-center p-1 transition-all hover:scale-[1.02] hover:shadow-md"
+                        >
+                          <div
+                            className="w-full h-full flex items-center justify-center"
+                            onClick={() => {
+                              if (onSelectImage) onSelectImage(result.url);
+                              setSearchModalOpen(false);
+                            }}
+                          >
+                            <img
+                              src={result.thumbnail || result.url}
+                              alt={result.title}
+                              className="w-full h-full object-contain rounded-lg"
+                              loading="lazy"
+                            />
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 bg-black/80 p-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <span className="text-[10px] text-white/70 truncate px-1">{result.title}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="p-4 space-y-4">
+                <Input
+                  placeholder="Paste image URL here..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-zinc-900 border-zinc-800 rounded-xl text-white"
+                />
+                {searchQuery.trim().match(/^https?:\/\//i) && (
+                  <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900/50">
+                    <img
+                      src={searchQuery.trim()}
+                      alt="Preview"
+                      className="w-full h-48 object-contain p-2"
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      if (onSelectImage) onSelectImage(searchQuery.trim());
+                      setSearchModalOpen(false);
+                    }}
+                    disabled={!searchQuery.trim()}
+                    className="flex-1 rounded-xl bg-gold hover:bg-gold-dark text-black font-bold"
+                  >
+                    Use This URL
+                  </Button>
+                  <Button variant="outline" onClick={() => setSearchModalOpen(false)} className="rounded-xl">
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

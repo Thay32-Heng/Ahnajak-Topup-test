@@ -107,6 +107,9 @@ app.use('/api/ahnajak-khqr', require('./routes/ahnajak-khqr.cjs'));
 app.use('/api/ikhode-payment', require('./routes/ikhode.cjs'));
 app.use('/api/update-prices', require('./routes/prices.cjs'));
 
+// Image search (SerpApi Google Images)
+app.use('/api', require('./routes/image-search.cjs'));
+
 // Misc (edge function aliases: get-ikhode-public-config, khqrcc-payment, etc.)
 app.use('/api', require('./routes/misc.cjs'));
 
