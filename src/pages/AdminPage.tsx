@@ -274,9 +274,12 @@ const AdminPage: React.FC = () => {
     try {
       const { data } = await api.get(`/search-images?q=${encodeURIComponent(q)}`);
       setSearchResults((data as any)?.results || []);
-    } catch (e) {
-      console.error(e);
-      toast({ title: 'Search failed', description: 'Check GOOGLE_API_KEY and GOOGLE_CX in .env', variant: 'destructive' });
+      if (!(data as any)?.results?.length) {
+        toast({ title: 'No results', description: 'Check pm2 logs for API error details', variant: 'default' });
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error || e?.message || 'Unknown error';
+      toast({ title: 'Search failed', description: msg, variant: 'destructive' });
     }
     setIsSearching(false);
   };
