@@ -3,23 +3,26 @@ const { sendError } = require('../helpers/errors.cjs');
 
 const router = express.Router();
 
-// ── Google search via SerpApi ─────────────────────────────────────────
-async function searchSerpApi(q) {
-  const apiKey = process.env.SERPAPI_API_KEY;
-  if (!apiKey) return null;
+// ── Google Custom Search JSON API ─────────────────────────────────────
+async function searchGoogleImages(q) {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  const cx = process.env.GOOGLE_CX;
+  if (!apiKey || !cx) return null;
   const params = new URLSearchParams({
-    engine: 'google_images',
-    api_key: apiKey,
+    key: apiKey,
+    cx,
     q: String(q),
+    searchType: 'image',
     safe: 'active',
+    num: '15',
   });
-  const res = await fetch(`https://serpapi.com/search?${params}`);
+  const res = await fetch(`https://www.googleapis.com/customsearch/v1?${params}`);
   const data = await res.json();
-  if (!data.image_results?.length) return null;
-  return data.image_results.map((item, i) => ({
+  if (!data.items?.length) return null;
+  return data.items.map((item, i) => ({
     title: item.title || `Image ${i + 1}`,
-    url: item.original || item.thumbnail,
-    thumbnail: item.thumbnail,
+    url: item.link,
+    thumbnail: item.image?.thumbnailLink || item.link,
     source: 'Google Images',
   }));
 }
@@ -71,9 +74,9 @@ router.get('/search-images', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Query required' });
   try {
-    // Try SerpApi Google Images first (if API key configured)
-    const serpResults = await searchSerpApi(q);
-    if (serpResults) return res.json({ results: serpResults });
+    // Try Google Custom Search JSON API first (if API key + cx configured)
+    const googleResults = await searchGoogleImages(q);
+    if (googleResults) return res.json({ results: googleResults });
 
     // Fall back to App Store + Google Play
     const [appStore, googlePlay] = await Promise.all([

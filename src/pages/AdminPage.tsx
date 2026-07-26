@@ -276,7 +276,7 @@ const AdminPage: React.FC = () => {
       setSearchResults((data as any)?.results || []);
     } catch (e) {
       console.error(e);
-      toast({ title: 'Search failed', description: 'Check SERPAPI_API_KEY in .env or try again', variant: 'destructive' });
+      toast({ title: 'Search failed', description: 'Check GOOGLE_API_KEY and GOOGLE_CX in .env', variant: 'destructive' });
     }
     setIsSearching(false);
   };
