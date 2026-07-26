@@ -276,7 +276,7 @@ const AdminPage: React.FC = () => {
       setSearchResults((data as any)?.results || []);
     } catch (e) {
       console.error(e);
-      toast({ title: 'Search failed', description: 'Could not fetch images from App Store or Google Play', variant: 'destructive' });
+      toast({ title: 'Search failed', description: 'Check SERPAPI_API_KEY in .env or try again', variant: 'destructive' });
     }
     setIsSearching(false);
   };
@@ -3233,7 +3233,7 @@ const AdminPage: React.FC = () => {
                 onClick={() => setSearchTab('search')}
                 className={`flex-1 py-3 text-sm font-bold transition-colors ${searchTab === 'search' ? 'text-gold border-b-2 border-gold' : 'text-zinc-400 hover:text-white'}`}
               >
-                Google Search
+                Search
               </button>
               <button
                 onClick={() => setSearchTab('url')}
@@ -3248,7 +3248,7 @@ const AdminPage: React.FC = () => {
                 <div className="p-4 border-b border-zinc-800 flex gap-2">
                   <div className="relative flex-1">
                     <Input
-                      placeholder="Search Google Images..."
+                      placeholder="Search images..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleImageSearch(); }}
