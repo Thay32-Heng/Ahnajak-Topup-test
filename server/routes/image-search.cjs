@@ -17,6 +17,12 @@ async function searchGoogleImages(q) {
     num: '15',
   });
   const res = await fetch(`https://www.googleapis.com/customsearch/v1?${params}`);
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    const msg = errBody?.error?.message || `Google API returned ${res.status}`;
+    console.error(`[Google Search] ${msg} (q: ${q})`);
+    throw new Error(msg);
+  }
   const data = await res.json();
   if (!data.items?.length) return null;
   return data.items.map((item, i) => ({
