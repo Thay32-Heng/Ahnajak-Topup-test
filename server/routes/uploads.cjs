@@ -1,13 +1,15 @@
 /**
- * routes/uploads.cjs — file uploads (replaces Supabase Storage)
+ * routes/uploads.cjs — file uploads with automatic WebP conversion
  * POST   /api/upload        — multipart upload (field: "file", optional "path")
  * DELETE /api/upload         — delete a file by path (body: { path })
  * Files are stored in /uploads/site-assets/ and served statically by Express.
+ * PNG/JPG/JPEG files are automatically converted to WebP on upload.
  */
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 const { requireAdmin } = require('../auth.cjs');
 const { sendError } = require('../helpers/errors.cjs');
 
@@ -50,24 +52,39 @@ const upload = multer({
   },
 });
 
-router.post('/', requireAdmin, upload.single('file'), (req, res) => {
+async function convertToWebp(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== '.png' && ext !== '.jpg' && ext !== '.jpeg') return filePath;
+
+  const webpPath = filePath.replace(/\.(png|jpe?g)$/i, '.webp');
+  try {
+    await sharp(filePath).webp({ quality: 85 }).toFile(webpPath);
+    fs.unlinkSync(filePath); // remove original
+    try { fs.chmodSync(webpPath, 0o644); } catch {}
+    return webpPath;
+  } catch (err) {
+    console.error('[WebP] Conversion failed:', err.message);
+    return filePath; // fall back to original if conversion fails
+  }
+}
+
+router.post('/', requireAdmin, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-  // Ensure the uploaded file is readable by Nginx (www-data)
   try {
-    fs.chmodSync(req.file.path, 0o644);
-  } catch (err) {
-    console.error('Failed to set permissions on uploaded file:', err);
-  }
+    // Convert to WebP if applicable
+    const finalPath = await convertToWebp(req.file.path);
+    try { fs.chmodSync(finalPath, 0o644); } catch {}
 
-  const publicPath = `/uploads/site-assets/${req.file.filename}`;
-  res.json({ path: publicPath, url: publicPath });
+    const filename = path.basename(finalPath);
+    const publicPath = `/uploads/site-assets/${filename}`;
+    res.json({ path: publicPath, url: publicPath });
+  } catch (err) { sendError(res, err, 'POST /upload'); }
 });
 
 router.delete('/', requireAdmin, async (req, res) => {
   const { path: filePath } = req.body;
   if (!filePath) return res.status(400).json({ error: 'path required' });
-  // Security: only allow deleting within uploads dir
   const fullPath = path.normalize(path.resolve(process.cwd(), filePath));
   const normalizedUpload = path.resolve(UPLOAD_DIR);
   if (!fullPath.startsWith(normalizedUpload)) {
@@ -75,6 +92,9 @@ router.delete('/', requireAdmin, async (req, res) => {
   }
   try {
     if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    // Also try deleting .webp variant if original was png/jpg
+    const webpPath = fullPath.replace(/\.(png|jpe?g)$/i, '.webp');
+    if (webpPath !== fullPath && fs.existsSync(webpPath)) fs.unlinkSync(webpPath);
     res.json({ success: true });
   } catch (err) { sendError(res, err, 'DELETE /uploads'); }
 });
