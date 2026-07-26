@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Package, useSite } from '@/contexts/SiteContext';
 import { resolveIconUrl } from '@/lib/icon-url';
+import { AiTwotoneDollarCircle } from 'react-icons/ai';
 
 interface PackageCardProps {
   pkg: Package;
@@ -75,9 +76,9 @@ const PackageCard: React.FC<PackageCardProps> = ({
                   }}
                 />
               </>
-            ) : iconError ? (
-              <span className="text-lg">💎</span>
-            ) : null}
+            ) : (
+              <AiTwotoneDollarCircle className="w-10 h-10 text-gold/60" />
+            )}
           </div>
         </div>
 
