@@ -40,8 +40,20 @@
     (function() {
       var c = document.cookie.match(/(?:^|;\s*)ahnajak-bgTheme=([^;]*)/);
       var t = c ? decodeURIComponent(c[1]) : null;
-      if (t === 'light') document.documentElement.classList.remove('dark');
-      else document.documentElement.classList.add('dark');
+      if (t === 'light') { document.documentElement.classList.remove('dark'); return; }
+      if (t === 'dark') { document.documentElement.classList.add('dark'); return; }
+      document.documentElement.classList.add('dark');
+      var x = new XMLHttpRequest();
+      x.open('GET', '/api/settings');
+      x.onload = function() {
+        if (x.status === 200) {
+          try {
+            var d = JSON.parse(x.responseText);
+            if (d && d.bgTheme === 'light') document.documentElement.classList.remove('dark');
+          } catch(e) {}
+        }
+      };
+      x.send();
     })();
   </script>
   <script type="module" src="/src/main.tsx"></script>

@@ -54,6 +54,7 @@ const AiTab: React.FC = () => {
       }
 
       updateSettings(updates);
+      document.cookie = `ahnajak-bgTheme=${bgType === 'image' || bgType === 'video' ? bgTheme : 'dark'}; path=/; max-age=31536000`;
       toast({
         title: 'Settings saved!',
         description: `Brand renamed to "${siteName}" with new colors and background.`,
