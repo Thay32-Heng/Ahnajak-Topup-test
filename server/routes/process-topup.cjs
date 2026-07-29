@@ -410,13 +410,16 @@ router.post('/', optionalAuth, async (req, res) => {
     // Action: fulfill (requires auth + ownership or admin)
     if (body.action === 'fulfill' && body.orderId) {
       if (!req.user) return res.status(401).json({ success: false, error: 'Authentication required' });
-      const order = await queryOne('SELECT user_id FROM topup_orders WHERE id = ?', [body.orderId]);
-      const isAdmin = await hasRole(req.user.id, 'admin');
-      if (order && order.user_id && order.user_id !== req.user.id && !isAdmin) {
-        return res.status(403).json({ success: false, error: 'Access denied' });
-      }
       const isPreorder = body.isPreorder === true;
       const tableName = isPreorder ? 'preorder_orders' : 'topup_orders';
+      const order = await queryOne(`SELECT user_id FROM ${tableName} WHERE id = ?`, [body.orderId]);
+      if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+      const isAdmin = await hasRole(req.user.id, 'admin');
+      const isOwner = order.user_id === req.user.id;
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
 
       if (isPreorder) {
         const preorder = await queryOne(`SELECT scheduled_fulfill_at, status FROM preorder_orders WHERE id = ?`, [body.orderId]);
@@ -434,6 +437,14 @@ router.post('/', optionalAuth, async (req, res) => {
     // Action: check_status (requires auth)
     if (body.action === 'check_status' && body.orderId) {
       if (!req.user) return res.status(401).json({ success: false, error: 'Authentication required' });
+      const order = await queryOne('SELECT user_id FROM topup_orders WHERE id = ?', [body.orderId]);
+      if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+      const isAdmin = await hasRole(req.user.id, 'admin');
+      const isOwner = order.user_id === req.user.id;
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
       const result = await checkG2BulkOrderStatus(body.orderId);
       return res.json(result);
     }
@@ -447,9 +458,7 @@ router.post('/', optionalAuth, async (req, res) => {
     if (String(player_id).length > 100) {
       return res.status(400).json({ success: false, error: 'player_id too long' });
     }
-    if (is_preorder && !req.user) {
-      return res.status(401).json({ success: false, error: 'Authentication required for pre-order checkout' });
-    }
+
 
     const authoritativePackage = await resolveAuthoritativePackage({
       gameName: game_name, packageName: package_name,

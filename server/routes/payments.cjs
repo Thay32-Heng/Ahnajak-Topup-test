@@ -98,11 +98,11 @@ router.put('/:slug', requireAuth, requireAdmin, async (req, res) => {
 
 // ── Create payment URL (KHQRcc / ABA Pay) ─────────────────────────────────
 // Also aliased as /api/khqrcc-payment for frontend compatibility
-router.post('/create-payment', requireAuth, async (req, res) => {
+router.post('/create-payment', optionalAuth, async (req, res) => {
   req.body = { ...req.body, action: 'create-payment' };
   return handleCreatePayment(req, res);
 });
-router.post('/khqrcc-payment', requireAuth, async (req, res) => {
+router.post('/khqrcc-payment', optionalAuth, async (req, res) => {
   return handleCreatePayment(req, res);
 });
 

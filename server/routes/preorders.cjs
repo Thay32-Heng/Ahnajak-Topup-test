@@ -113,6 +113,25 @@ router.get('/orders', requireAuth, async (req, res) => {
   } catch (err) { sendError(res, err, 'GET /preorders/orders'); }
 });
 
+// Get single preorder order by id
+router.get('/orders/:id', optionalAuth, async (req, res) => {
+  try {
+    const order = await queryOne('SELECT * FROM preorder_orders WHERE id = ?', [req.params.id]);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    
+    if (order.user_id) {
+      if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+      const { hasRole } = require('../auth.cjs');
+      const isAdmin = await hasRole(req.user.id, 'admin');
+      if (order.user_id !== req.user.id && !isAdmin) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+    
+    res.json(order);
+  } catch (err) { sendError(res, err, 'GET /preorders/orders/:id'); }
+});
+
 router.post('/orders', optionalAuth, async (req, res) => {
   const b = req.body;
   const id = uuid();

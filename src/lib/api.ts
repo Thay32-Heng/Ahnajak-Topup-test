@@ -1,4 +1,4 @@
-﻿/**
+/**
  * api.ts — Frontend data layer for Express+MySQL API
  *
  * All database operations go through the Express API server (port 3010,
@@ -228,8 +228,23 @@ const api = {
         // Poll every 5 seconds
         const interval = setInterval(async () => {
           try {
-            const hasPreorder = listeners.some(l => l.filter?.table === 'preorder_orders');
-            const path = hasPreorder ? '/preorders/orders' : '/orders';
+            // Check if any listener targets a specific order ID
+            let singleOrderId: string | null = null;
+            let isPreorder = false;
+            for (const l of listeners) {
+              if (l.filter?.table === 'preorder_orders') isPreorder = true;
+              if (l.filter?.filter) {
+                const match = String(l.filter.filter).match(/id=eq\.(.+)/);
+                if (match) {
+                  singleOrderId = match[1];
+                }
+              }
+            }
+
+            const path = singleOrderId 
+              ? (isPreorder ? `/preorders/orders/${singleOrderId}` : `/orders/${singleOrderId}`)
+              : (isPreorder ? '/preorders/orders' : '/orders');
+
             const { data, error } = await request('GET', path);
             if (!error && data) {
               const rows = Array.isArray(data) ? data : [data];
@@ -242,7 +257,9 @@ const api = {
               if (isFirstPoll) {
                 // Initialize known orders on first poll
                 for (const row of rows) {
-                  knownOrders.set(row.id, { status: row.status, updated_at: row.updated_at, data: row });
+                  if (row && row.id) {
+                    knownOrders.set(row.id, { status: row.status, updated_at: row.updated_at, data: row });
+                  }
                 }
                 isFirstPoll = false;
                 return;
@@ -250,6 +267,7 @@ const api = {
 
               // Compare
               for (const row of rows) {
+                if (!row || !row.id) continue;
                 const known = knownOrders.get(row.id);
                 if (!known) {
                   // New order (INSERT)

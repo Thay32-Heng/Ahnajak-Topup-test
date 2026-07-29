@@ -5,7 +5,7 @@
  */
 const express = require('express');
 const { query, queryOne } = require('../db.cjs');
-const { requireAuth } = require('../auth.cjs');
+const { requireAuth, optionalAuth, hasRole } = require('../auth.cjs');
 const QRCode = require('qrcode');
 
 const router = express.Router();
@@ -59,7 +59,7 @@ async function markPaid(table, orderId, txId) {
   return result[0].affectedRows > 0;
 }
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   const body = req.body;
   const action = body?.action;
   if (!action) return res.status(400).json({ error: 'Missing action' });
@@ -71,6 +71,10 @@ router.post('/', requireAuth, async (req, res) => {
 
   try {
     if (action === 'test-connection') {
+      if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+      const isAdmin = await hasRole(req.user.id, 'admin');
+      if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
       const r = await fetch(`${api}/me`, { headers: authHeader });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) return res.json({ success: false, error: data?.message || `HTTP ${r.status}` });

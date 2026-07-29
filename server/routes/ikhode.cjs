@@ -5,7 +5,7 @@
  */
 const express = require('express');
 const { query, queryOne } = require('../db.cjs');
-const { requireAuth } = require('../auth.cjs');
+const { requireAuth, optionalAuth } = require('../auth.cjs');
 
 const router = express.Router();
 
@@ -15,7 +15,7 @@ async function loadConfig() {
   return typeof row.config === 'string' ? JSON.parse(row.config) : row.config || {};
 }
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   const cfg = await loadConfig();
   if (!cfg) return res.json({ success: false, error: 'IKhode gateway not configured or disabled' });
 

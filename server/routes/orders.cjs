@@ -35,14 +35,19 @@ router.get('/recent', requireAuth, async (req, res) => {
 });
 
 // Get single order by id
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const order = await queryOne('SELECT * FROM topup_orders WHERE id = ?', [req.params.id]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    const isAdmin = await hasRole(req.user.id, 'admin');
-    if (!isAdmin && order.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'Access denied' });
+    
+    if (order.user_id) {
+      if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+      const isAdmin = await hasRole(req.user.id, 'admin');
+      if (order.user_id !== req.user.id && !isAdmin) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
     }
+    
     res.json(order);
   } catch (err) { sendError(res, err, 'GET /orders/:id'); }
 });
