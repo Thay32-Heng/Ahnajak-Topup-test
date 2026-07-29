@@ -15,6 +15,7 @@ interface ExportData {
   siteSettings: any[];
   gameVerificationConfigs: any[];
   paymentQrSettings: any[];
+  paymentGateways?: any[];
 }
 
 const DatabaseExportImport: React.FC = () => {
@@ -34,6 +35,7 @@ const DatabaseExportImport: React.FC = () => {
         siteSettingsResult,
         verificationConfigsResult,
         paymentQrResult,
+        gatewaysResult,
       ] = await Promise.all([
         db.from("games").select("*").order("sort_order"),
         db.from("packages").select("*").order("sort_order"),
@@ -41,6 +43,7 @@ const DatabaseExportImport: React.FC = () => {
         db.from("site_settings").select("*"),
         db.from("game_verification_configs").select("*"),
         db.from("payment_qr_settings").select("*"),
+        db.from("payment_gateways").select("*"),
       ]);
 
       // Check for errors
@@ -50,6 +53,7 @@ const DatabaseExportImport: React.FC = () => {
       if (siteSettingsResult.error) throw siteSettingsResult.error;
       if (verificationConfigsResult.error) throw verificationConfigsResult.error;
       if (paymentQrResult.error) throw paymentQrResult.error;
+      if (gatewaysResult.error) throw gatewaysResult.error;
 
       const exportData: ExportData = {
         version: "1.0",
@@ -60,6 +64,7 @@ const DatabaseExportImport: React.FC = () => {
         siteSettings: siteSettingsResult.data || [],
         gameVerificationConfigs: verificationConfigsResult.data || [],
         paymentQrSettings: paymentQrResult.data || [],
+        paymentGateways: gatewaysResult.data || [],
       };
 
       // Create and download JSON file
@@ -280,6 +285,10 @@ const DatabaseExportImport: React.FC = () => {
               <li className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-gold"></span>
                 Payment QR Settings (KHQR configuration)
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-gold"></span>
+                Payment Gateways (API keys, configs — ⚠️ keep backup file secure)
               </li>
             </ul>
           </div>

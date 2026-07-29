@@ -8,7 +8,13 @@ export async function onRequest(context) {
   const isBodyless = context.request.method === 'GET' || context.request.method === 'HEAD';
   const body = isBodyless ? undefined : await context.request.arrayBuffer();
 
-  const vpsIp = context.env.VPS_INTERNAL_IP || '45.151.155.24';
+  const vpsIp = context.env.VPS_INTERNAL_IP;
+  if (!vpsIp) {
+    return new Response(JSON.stringify({ error: 'VPS_INTERNAL_IP not configured' }), {
+      status: 500,
+      headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+    });
+  }
 
   for (const port of [3010, 80]) {
     try {

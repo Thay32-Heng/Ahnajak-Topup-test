@@ -20,6 +20,12 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  build: {
+    minify: 'esbuild',
+    esbuild: {
+      drop: ['console'],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -52,7 +52,9 @@ async function main() {
     // Then run seed data
     await pool.query(sql);
     console.log('✓ Seed data inserted successfully');
-    console.log('  - Default admin user: admin@ahnajak.com / ' + adminPassword);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('  - Default admin user: admin@ahnajak.com / ' + adminPassword);
+    }
     console.log('  - Payment gateways (disabled)');
     console.log('  - Default site settings');
     console.log('  - Game verification configs');

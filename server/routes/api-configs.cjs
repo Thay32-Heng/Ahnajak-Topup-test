@@ -163,7 +163,7 @@ router.put('/packages/:id/markup', requireAuth, requireAdmin, async (req, res) =
 // ── Database Import (used by DatabaseExportImport component) ──────────────
 // Accepts the full export JSON object, replaces all data atomically
 router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
-  const { version, games, packages, specialPackages, siteSettings, gameVerificationConfigs, paymentQrSettings } = req.body;
+  const { version, games, packages, specialPackages, siteSettings, gameVerificationConfigs, paymentQrSettings, paymentGateways } = req.body;
   if (!version || !games || !packages) {
     return res.status(400).json({ error: 'Invalid import data: version, games, and packages are required' });
   }
@@ -178,6 +178,7 @@ router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
     await query('DELETE FROM site_settings');
     await query('DELETE FROM events');
     await query('DELETE FROM event_banners');
+    await query('DELETE FROM payment_gateways');
     await query('DELETE FROM g2bulk_products');
     await query('DELETE FROM games');
 
@@ -229,6 +230,16 @@ router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
       }
     }
 
+    if (paymentGateways?.length > 0) {
+      for (const g of paymentGateways) {
+        const id = g.id || uuid();
+        await query(
+          'INSERT INTO payment_gateways (id, slug, name, enabled, config) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), enabled = VALUES(enabled), config = VALUES(config)',
+          [id, g.slug, g.name, g.enabled != null ? (g.enabled ? 1 : 0) : 1, g.config ? JSON.stringify(g.config) : null]
+        );
+      }
+    }
+
     res.json({
       success: true,
       imported: {
@@ -236,6 +247,7 @@ router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
         packages: packages.length,
         specialPackages: specialPackages.length,
         siteSettings: siteSettings.length,
+        paymentGateways: paymentGateways?.length || 0,
       },
     });
   } catch (err) {
