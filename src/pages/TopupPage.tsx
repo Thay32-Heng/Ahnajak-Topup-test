@@ -982,7 +982,7 @@ const TopupPage: React.FC = () => {
                   onChange={(e) =>
                     field.key === "userId" ? handleUserIdChange(e.target.value) : handleServerIdChange(e.target.value)
                   }
-                  className="bg-white/80 border-0 rounded-full h-10 sm:h-12 px-4 sm:px-5 text-sm sm:text-base text-foreground placeholder:text-muted-foreground"
+                  className="bg-white/80 border-0 rounded-full h-10 sm:h-12 px-4 sm:px-5 text-sm sm:text-base text-gray-900 placeholder:text-gray-400"
                   disabled={isVerifying}
                 />
               )}
