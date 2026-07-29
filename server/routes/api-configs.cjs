@@ -223,11 +223,15 @@ router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
     }
 
     if (gameVerificationConfigs?.length > 0) {
-      for (const c of gameVerificationConfigs) {
+      const validConfigs = gameVerificationConfigs.filter(c => c.id && c.game_name && c.api_code);
+      if (gameVerificationConfigs.length !== validConfigs.length) {
+        console.warn(`Import: skipped ${gameVerificationConfigs.length - validConfigs.length} game verification config(s) with missing required fields`);
+      }
+      for (const c of validConfigs) {
         const id = c.id || uuid();
         await query(
-          'INSERT INTO game_verification_configs (id, game_id, verification_type, api_key, config) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE verification_type = VALUES(verification_type), api_key = VALUES(api_key), config = VALUES(config)',
-          [id, c.game_id, c.verification_type || null, c.api_key || null, c.config ? JSON.stringify(c.config) : null]
+          'INSERT INTO game_verification_configs (id, game_name, api_code, api_provider, requires_zone, default_zone, is_active, zone_options) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE game_name = VALUES(game_name), api_code = VALUES(api_code), api_provider = VALUES(api_provider), requires_zone = VALUES(requires_zone), default_zone = VALUES(default_zone), is_active = VALUES(is_active), zone_options = VALUES(zone_options)',
+          [id, c.game_name, c.api_code, c.api_provider || 'g2bulk', c.requires_zone ? 1 : 0, c.default_zone || null, c.is_active ?? 1, c.zone_options ? JSON.stringify(c.zone_options) : null]
         );
       }
     }
@@ -259,6 +263,7 @@ router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
         packages: validPackages.length,
         specialPackages: validSpecial.length,
         siteSettings: siteSettings.length,
+        gameVerificationConfigs: (gameVerificationConfigs?.length || 0),
         paymentGateways: paymentGateways?.length || 0,
       },
     });
