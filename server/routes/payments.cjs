@@ -196,6 +196,13 @@ router.get('/qr-settings', async (req, res) => {
   } catch (err) { sendError(res, err, 'GET /payment-gateways/qr-settings'); }
 });
 
+router.delete('/qr-settings', requireAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM payment_qr_settings');
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'DELETE /payment-gateways/qr-settings'); }
+});
+
 router.put('/qr-settings/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const sets = [], values = [];

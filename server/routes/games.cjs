@@ -12,6 +12,30 @@ const router = express.Router();
 
 // ── GAMES ──────────────────────────────────────────────────────────────────
 
+// Bulk delete all packages (admin — used by DatabaseExportImport)
+router.delete('/packages/all', requireAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM packages');
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'DELETE /packages/all'); }
+});
+
+// Bulk delete all special packages (admin — used by DatabaseExportImport)
+router.delete('/special-packages/all', requireAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM special_packages');
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'DELETE /special-packages/all'); }
+});
+
+// Bulk delete all games (admin — used by DatabaseExportImport)
+router.delete('/', requireAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM games');
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'DELETE /games'); }
+});
+
 // List all packages (public — used by SiteContext bulk load)
 router.get('/packages/all', async (req, res) => {
   try {

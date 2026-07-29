@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Download, Upload, Database, CheckCircle, AlertCircle, Loader2, FileJson } from "lucide-react";
 import { db } from "@/integrations/db/client";
+import api from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 interface ExportData {
@@ -108,58 +109,8 @@ const DatabaseExportImport: React.FC = () => {
         throw new Error("Invalid backup file format");
       }
 
-      // Clear existing data and import new data
-      // Order matters: delete children first, then parents
-
-      // 1. Delete existing packages and special packages first (they reference games)
-      await db.from("packages").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      await db.from("special_packages").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-      // 2. Delete games
-      await db.from("games").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-      // 3. Delete other tables
-      await db.from("game_verification_configs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      await db.from("payment_qr_settings").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-      await db.from("site_settings").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-      // 4. Insert games first (parent table)
-      if (data.games.length > 0) {
-        const { error: gamesError } = await db.from("games").insert(data.games);
-        if (gamesError) throw new Error(`Games import failed: ${gamesError.message}`);
-      }
-
-      // 5. Insert packages (reference games)
-      if (data.packages.length > 0) {
-        const { error: packagesError } = await db.from("packages").insert(data.packages);
-        if (packagesError) throw new Error(`Packages import failed: ${packagesError.message}`);
-      }
-
-      // 6. Insert special packages (reference games)
-      if (data.specialPackages.length > 0) {
-        const { error: specialPackagesError } = await db.from("special_packages").insert(data.specialPackages);
-        if (specialPackagesError) throw new Error(`Special packages import failed: ${specialPackagesError.message}`);
-      }
-
-      // 7. Insert site settings
-      if (data.siteSettings.length > 0) {
-        const { error: settingsError } = await db.from("site_settings").insert(data.siteSettings);
-        if (settingsError) throw new Error(`Site settings import failed: ${settingsError.message}`);
-      }
-
-      // 8. Insert verification configs
-      if (data.gameVerificationConfigs?.length > 0) {
-        const { error: configsError } = await db
-          .from("game_verification_configs")
-          .insert(data.gameVerificationConfigs);
-        if (configsError) throw new Error(`Verification configs import failed: ${configsError.message}`);
-      }
-
-      // 9. Insert payment QR settings
-      if (data.paymentQrSettings?.length > 0) {
-        const { error: qrError } = await db.from("payment_qr_settings").insert(data.paymentQrSettings);
-        if (qrError) throw new Error(`Payment QR settings import failed: ${qrError.message}`);
-      }
+      const result = await api.post('/admin/import-database', data);
+      if (result.error) throw new Error(result.error.message || result.error);
 
       setImportResult({
         success: true,
@@ -171,10 +122,7 @@ const DatabaseExportImport: React.FC = () => {
         description: "Database restored successfully. Please refresh the page.",
       });
 
-      // Refresh page after 2 seconds
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      setTimeout(() => window.location.reload(), 2000);
     } catch (error: any) {
       console.error("Import error:", error);
       setImportResult({
@@ -188,7 +136,6 @@ const DatabaseExportImport: React.FC = () => {
       });
     } finally {
       setIsImporting(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }

@@ -160,4 +160,87 @@ router.put('/packages/:id/markup', requireAuth, requireAdmin, async (req, res) =
   } catch (err) { sendError(res, err, 'PUT /packages/:id/markup'); }
 });
 
+// ── Database Import (used by DatabaseExportImport component) ──────────────
+// Accepts the full export JSON object, replaces all data atomically
+router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
+  const { version, games, packages, specialPackages, siteSettings, gameVerificationConfigs, paymentQrSettings } = req.body;
+  if (!version || !games || !packages) {
+    return res.status(400).json({ error: 'Invalid import data: version, games, and packages are required' });
+  }
+  try {
+    // Delete in FK order (children first)
+    await query('DELETE FROM packages');
+    await query('DELETE FROM special_packages');
+    await query('DELETE FROM preorder_packages');
+    await query('DELETE FROM preorder_games');
+    await query('DELETE FROM game_verification_configs');
+    await query('DELETE FROM payment_qr_settings');
+    await query('DELETE FROM site_settings');
+    await query('DELETE FROM events');
+    await query('DELETE FROM event_banners');
+    await query('DELETE FROM g2bulk_products');
+    await query('DELETE FROM games');
+
+    // Insert in FK order (parents first)
+    if (games.length > 0) {
+      const placeholders = games.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const flat = games.flatMap(g => [g.id, g.name, g.image || null, g.slug || null, g.g2bulk_category_id || null, g.default_package_icon || null, g.cover_image || null, g.tags ? JSON.stringify(g.tags) : null]);
+      await query(`INSERT INTO games (id, name, image, slug, g2bulk_category_id, default_package_icon, cover_image, tags) VALUES ${placeholders}`, flat);
+    }
+
+    if (packages.length > 0) {
+      const placeholders = packages.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const flat = packages.flatMap(p => [p.id, p.game_id, p.name, String(p.amount), p.price, p.icon || null, p.sort_order ?? 0, p.label || null, p.label_bg_color || null, p.label_text_color || null, p.label_icon || null, p.g2bulk_product_id || null, p.g2bulk_type_id || null, p.quantity ?? null, p.points || 0]);
+      await query(`INSERT INTO packages (id, game_id, name, amount, price, icon, sort_order, label, label_bg_color, label_text_color, label_icon, g2bulk_product_id, g2bulk_type_id, quantity, points) VALUES ${placeholders}`, flat);
+    }
+
+    if (specialPackages.length > 0) {
+      const placeholders = specialPackages.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const flat = specialPackages.flatMap(p => [p.id, p.game_id, p.name, String(p.amount), p.price, p.icon || null, p.sort_order ?? 0, p.label || null, p.label_bg_color || null, p.label_text_color || null, p.label_icon || null, p.g2bulk_product_id || null, p.g2bulk_type_id || null, p.quantity ?? null, p.points || 0]);
+      await query(`INSERT INTO special_packages (id, game_id, name, amount, price, icon, sort_order, label, label_bg_color, label_text_color, label_icon, g2bulk_product_id, g2bulk_type_id, quantity, points) VALUES ${placeholders}`, flat);
+    }
+
+    if (siteSettings.length > 0) {
+      for (const s of siteSettings) {
+        await query(
+          'INSERT INTO site_settings (id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+          [s.id || uuid(), s.key, typeof s.value === 'string' ? s.value : JSON.stringify(s.value)]
+        );
+      }
+    }
+
+    if (gameVerificationConfigs?.length > 0) {
+      for (const c of gameVerificationConfigs) {
+        const id = c.id || uuid();
+        await query(
+          'INSERT INTO game_verification_configs (id, game_id, verification_type, api_key, config) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE verification_type = VALUES(verification_type), api_key = VALUES(api_key), config = VALUES(config)',
+          [id, c.game_id, c.verification_type || null, c.api_key || null, c.config ? JSON.stringify(c.config) : null]
+        );
+      }
+    }
+
+    if (paymentQrSettings?.length > 0) {
+      for (const q of paymentQrSettings) {
+        const id = q.id || uuid();
+        await query(
+          'INSERT INTO payment_qr_settings (id, payment_method, qr_code_image, bank_name, account_name, account_number, instructions, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE payment_method = VALUES(payment_method), qr_code_image = VALUES(qr_code_image), bank_name = VALUES(bank_name), account_name = VALUES(account_name), account_number = VALUES(account_number), instructions = VALUES(instructions), is_enabled = VALUES(is_enabled)',
+          [id, q.payment_method, q.qr_code_image, q.bank_name, q.account_name, q.account_number, q.instructions, q.is_enabled != null ? (q.is_enabled ? 1 : 0) : 1]
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      imported: {
+        games: games.length,
+        packages: packages.length,
+        specialPackages: specialPackages.length,
+        siteSettings: siteSettings.length,
+      },
+    });
+  } catch (err) {
+    sendError(res, err, 'POST /admin/import-database');
+  }
+});
+
 module.exports = router;

@@ -45,6 +45,14 @@ router.put('/', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { sendError(res, err, 'PUT /settings'); }
 });
 
+// Bulk delete all settings (admin — used by DatabaseExportImport)
+router.delete('/', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM site_settings');
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'DELETE /settings'); }
+});
+
 // Upsert single setting (admin)
 router.put('/:key', requireAuth, requireAdmin, async (req, res) => {
   const { key } = req.params;
