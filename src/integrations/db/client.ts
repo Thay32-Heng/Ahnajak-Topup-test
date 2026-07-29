@@ -103,7 +103,14 @@ export const db = {
 
       for (const f of _filters) {
         if (f.op === 'in') rows = rows.filter((r: any) => Array.isArray(f.val) && f.val.includes(r[f.col]));
-        else if (f.op === 'neq') rows = rows.filter((r: any) => r[f.col] !== f.val);
+        else if (f.op === 'neq') {
+          rows = rows.filter((r: any) => {
+            const rv = r[f.col];
+            if (typeof f.val === 'boolean' && (rv === 1 || rv === 0)) return !!rv !== f.val;
+            if (typeof rv === 'boolean' && (f.val === 1 || f.val === 0)) return rv !== !!f.val;
+            return rv !== f.val;
+          });
+        }
         else if (f.op === 'gte') rows = rows.filter((r: any) => r[f.col] >= f.val);
         else if (f.op === 'ilike') {
           const raw = String(f.val);
@@ -117,7 +124,15 @@ export const db = {
             if (hasTrailingWildcard) return val.startsWith(pattern);
             return val === pattern;
           });
-        } else rows = rows.filter((r: any) => r[f.col] === f.val);
+        } else {
+          // Handle MySQL TINYINT(1) vs JS boolean mismatch: 1 !== true, 0 !== false
+          rows = rows.filter((r: any) => {
+            const rv = r[f.col];
+            if (typeof f.val === 'boolean' && (rv === 1 || rv === 0)) return !!rv === f.val;
+            if (typeof rv === 'boolean' && (f.val === 1 || f.val === 0)) return rv === !!f.val;
+            return rv === f.val;
+          });
+        }
       }
 
       if (_order) {
