@@ -766,8 +766,6 @@ const TopupPage: React.FC = () => {
         },
       });
 
-      console.log("Verification response:", data, error);
-
       if (error) {
         let msg = error.message || "Verification failed";
         let requiresServerId = false;

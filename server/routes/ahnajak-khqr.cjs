@@ -46,6 +46,16 @@ async function markPaid(table, orderId, txId) {
      WHERE id = ? AND status IN ('pending', 'notpaid', 'awaiting_payment')`,
     ['paid', 'KHQR', txId || null, orderId]
   );
+  if (result[0].affectedRows > 0) {
+    try {
+      const processTopup = require('./process-topup.cjs');
+      processTopup.fulfillOrder(orderId, table === 'preorder_orders').catch(e => {
+        console.error('[ahnajak-khqr] Fulfillment error:', e.message);
+      });
+    } catch (e) {
+      console.error('[ahnajak-khqr] Fulfillment trigger error:', e.message);
+    }
+  }
   return result[0].affectedRows > 0;
 }
 

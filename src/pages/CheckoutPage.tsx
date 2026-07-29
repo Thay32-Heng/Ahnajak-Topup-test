@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, ArrowLeft, Loader2, CheckCircle, Package, AlertCircle, Ticket, Check, X } from "lucide-react";
+import { CreditCard, ArrowLeft, Loader2, CheckCircle, Package, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
 import { useSite } from "@/contexts/SiteContext";
 import { useFavicon } from "@/hooks/useFavicon";
-import { Input } from "@/components/ui/input";
 import KHQRPaymentCard from "@/components/KHQRPaymentCard";
 
 interface GeneratedQR {
@@ -41,13 +40,7 @@ const CheckoutPage = () => {
   const [orderComplete, setOrderComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Coupon state
-  const [couponCode, setCouponCode] = useState("");
-  const [discountAmount, setDiscountAmount] = useState(0);
-  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
-  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
-
-  const getFinalTotal = () => Math.max(0, getTotal() - discountAmount);
+  const getFinalTotal = () => getTotal();
 
   useEffect(() => {
     if (items.length === 0 && !orderComplete && !generatedQR) {
@@ -65,41 +58,6 @@ const CheckoutPage = () => {
       generateKHQR();
     }
   }, [ikhodePayment?.isEnabled, items.length]);
-
-  const handleApplyCoupon = async () => {
-    if (!couponCode) return;
-    setIsApplyingCoupon(true);
-    try {
-      const { data, error } = await db.rpc('apply_coupon', { 
-        p_code: couponCode.trim().toUpperCase(), 
-        p_order_amount: getTotal() 
-      });
-      if (error) throw error;
-
-      const result = data as any;
-      if (result?.success) {
-        setDiscountAmount(result.discount_amount);
-        setAppliedCoupon(couponCode.trim().toUpperCase());
-        toast({ title: 'គូប៉ុងបានអនុវត្ត!', description: `អ្នកទទួលបានការបញ្ចុះតម្លៃ $${Number(result.discount_amount).toFixed(2)}` });
-      } else {
-        toast({ title: 'គូប៉ុងមិនត្រឹមត្រូវ', description: result?.message, variant: 'destructive' });
-      }
-    } catch (err: any) {
-      toast({ title: 'កំហុសគូប៉ុង', description: err.message, variant: 'destructive' });
-    } finally {
-      setIsApplyingCoupon(false);
-    }
-  };
-
-  const handleRemoveCoupon = () => {
-    // If the coupon was applied, we might need to "un-use" it if we cancel the checkout,
-    // but typically a used coupon is consumed at checkout. For simplicity, we just clear it from the UI.
-    // In a production system, you'd mark it used ONLY upon successful payment.
-    // For now, if they remove it, they just lose the discount here.
-    setAppliedCoupon(null);
-    setCouponCode("");
-    setDiscountAmount(0);
-  };
 
   const generateKHQR = async () => {
     if (items.length === 0) return;
@@ -305,54 +263,12 @@ const CheckoutPage = () => {
 
                 <Separator />
 
-                {/* Coupon Code Section */}
-                {!generatingQR && !generatedQR && (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium flex items-center gap-2">
-                      <Ticket className="w-4 h-4 text-gold" />
-                      កូដគូប៉ុងបញ្ចុះតម្លៃ
-                    </p>
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="បញ្ចូលកូដ" 
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                        disabled={!!appliedCoupon || isApplyingCoupon}
-                        className="font-mono uppercase"
-                      />
-                      {!appliedCoupon ? (
-                        <Button 
-                          onClick={handleApplyCoupon} 
-                          disabled={!couponCode || isApplyingCoupon}
-                          className="bg-gold hover:bg-gold-dark text-black"
-                        >
-                          {isApplyingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "អនុវត្ត"}
-                        </Button>
-                      ) : (
-                        <Button onClick={handleRemoveCoupon} variant="outline" className="text-destructive">
-                          <X className="w-4 h-4 mr-1" /> លុប
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 <Separator />
 
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center text-muted-foreground text-sm">
-                    <span>តម្លៃដើមសរុប</span>
-                    <span>${getTotal().toFixed(2)}</span>
-                  </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between items-center text-green-500 text-sm font-medium">
-                      <span>បញ្ចុះតម្លៃ (គូប៉ុង)</span>
-                      <span>-${discountAmount.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center font-bold text-lg pt-2 border-t border-border">
-                    <span>សរុបចុងក្រោយ</span>
-                    <span className="text-gold">${getFinalTotal().toFixed(2)}</span>
+                  <div className="flex justify-between items-center font-bold text-lg border-t border-border pt-2">
+                    <span>សរុប</span>
+                    <span className="text-gold">${getTotal().toFixed(2)}</span>
                   </div>
                 </div>
 

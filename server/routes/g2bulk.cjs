@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
           method: 'POST', headers, body: JSON.stringify({ game: params.game_code })
         });
         const gsData = await gsRes.json();
-        console.log(`[g2bulk] get_game_servers for ${params.game_code}:`, JSON.stringify(gsData).slice(0, 500));
+        console.log(`[g2bulk] get_game_servers for ${params.game_code}:`, gsData?.success ? 'success' : 'failed');
         // Normalize: ensure the response has data.servers
         if (gsData.data?.servers || gsData.servers || gsData.data?.zones || gsData.zones) {
           const servers = gsData.data?.servers || gsData.servers || gsData.data?.zones || gsData.zones;

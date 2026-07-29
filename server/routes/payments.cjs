@@ -158,12 +158,16 @@ router.post('/khqrcc-webhook', async (req, res) => {
   }
 
   if (status === 'SUCCESS') {
-    // Verify the amount paid matches the database order amount (price-tampering prevention)
-    const order = await queryOne('SELECT amount FROM topup_orders WHERE id = ?', [transaction_id]);
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    // Idempotency check: skip if already paid
+    const existingOrder = await queryOne('SELECT status, amount FROM topup_orders WHERE id = ?', [transaction_id]);
+    if (!existingOrder) return res.status(404).json({ error: 'Order not found' });
+    if (existingOrder.status === 'paid' || existingOrder.status === 'completed') {
+      return res.status(200).json({ received: true, status: 'already_processed' });
+    }
 
+    // Verify the amount paid matches the database order amount (price-tampering prevention)
     const paidAmount = parseFloat(amount);
-    const expectedAmount = parseFloat(order.amount);
+    const expectedAmount = parseFloat(existingOrder.amount);
     if (isNaN(paidAmount) || isNaN(expectedAmount) || Math.abs(paidAmount - expectedAmount) > 0.01) {
       return res.status(400).json({ error: 'Payment amount mismatch' });
     }

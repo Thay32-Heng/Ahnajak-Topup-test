@@ -50,16 +50,25 @@ router.get('/:id', requireAuth, async (req, res) => {
 // Create order (anyone — guest checkout allowed, status forced to 'pending')
 router.post('/', optionalAuth, async (req, res) => {
   const b = req.body;
+  if (!b.player_id || String(b.player_id).length > 100) {
+    return res.status(400).json({ error: 'Invalid or too long player_id' });
+  }
   const id = uuid();
   try {
     // Pricing protection: Retrieve actual price from the database to prevent pricing tampering
     let dbPrice = null;
     let pkg = null;
     
-    if (b.g2bulk_product_id) {
-      pkg = await queryOne('SELECT price FROM packages WHERE g2bulk_product_id = ?', [b.g2bulk_product_id]);
+    if (b.g2bulk_product_id && b.game_name && b.package_name) {
+      pkg = await queryOne(
+        'SELECT p.price FROM packages p JOIN games g ON g.id = p.game_id WHERE p.g2bulk_product_id = ? AND g.name = ? AND p.name = ?',
+        [b.g2bulk_product_id, b.game_name, b.package_name]
+      );
       if (!pkg) {
-        pkg = await queryOne('SELECT price FROM special_packages WHERE g2bulk_product_id = ?', [b.g2bulk_product_id]);
+        pkg = await queryOne(
+          'SELECT sp.price FROM special_packages sp JOIN games g ON g.id = sp.game_id WHERE sp.g2bulk_product_id = ? AND g.name = ? AND sp.name = ?',
+          [b.g2bulk_product_id, b.game_name, b.package_name]
+        );
       }
     }
     
@@ -82,6 +91,11 @@ router.post('/', optionalAuth, async (req, res) => {
     }
     
     const finalAmount = dbPrice;
+
+    // Validate client-provided amount against DB price (price-tampering prevention)
+    if (Number(b.amount) && Number.isFinite(Number(b.amount)) && Math.abs(Number(b.amount) - dbPrice) > 0.0001) {
+      return res.status(400).json({ error: 'Amount does not match package price' });
+    }
 
     await query(
       `INSERT INTO topup_orders (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status)

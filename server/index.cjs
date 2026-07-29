@@ -75,7 +75,7 @@ app.use('/api/settings', require('./routes/settings.cjs'));
 app.use('/api/games', require('./routes/games.cjs'));
 
 // Orders (topup_orders + polling)
-app.use('/api/orders', require('./routes/orders.cjs'));
+app.use('/api/orders', financialLimiter, require('./routes/orders.cjs'));
 
 // Preorders
 app.use('/api/preorders', require('./routes/preorders.cjs'));
