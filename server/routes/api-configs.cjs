@@ -124,18 +124,39 @@ router.delete('/g2bulk-products/:id', requireAuth, requireAdmin, async (req, res
   catch (err) { sendError(res, err, 'DELETE /g2bulk-products/:id'); }
 });
 
-// Update package markup
+// Update package markup — recalculates price from G2Bulk cost + markup %
 router.put('/packages/:id/markup', requireAuth, requireAdmin, async (req, res) => {
   const { price_markup_percent } = req.body;
   try {
-    const [pkg] = await query("SELECT id, 'packages' as tbl FROM packages WHERE id = ? " +
-      "UNION ALL SELECT id, 'special_packages' as tbl FROM special_packages WHERE id = ? " +
-      "UNION ALL SELECT id, 'preorder_packages' as tbl FROM preorder_packages WHERE id = ?",
+    const [pkg] = await query("SELECT p.id, p.g2bulk_product_id, 'packages' as tbl FROM packages p WHERE p.id = ? " +
+      "UNION ALL SELECT sp.id, sp.g2bulk_product_id, 'special_packages' as tbl FROM special_packages sp WHERE sp.id = ? " +
+      "UNION ALL SELECT pp.id, pp.g2bulk_product_id, 'preorder_packages' as tbl FROM preorder_packages pp WHERE pp.id = ?",
       [req.params.id, req.params.id, req.params.id]);
     if (!pkg.length) return res.status(404).json({ error: 'Package not found' });
-    const tbl = pkg[0].tbl;
-    await query(`UPDATE \`${tbl}\` SET price_markup_percent = ? WHERE id = ?`, [price_markup_percent, req.params.id]);
-    res.json({ success: true });
+    const { g2bulk_product_id, tbl } = pkg[0];
+
+    // Look up G2Bulk cost price
+    let g2bulkCost = null;
+    if (g2bulk_product_id) {
+      const gp = await queryOne('SELECT price FROM g2bulk_products WHERE g2bulk_product_id = ?', [g2bulk_product_id]);
+      if (gp) g2bulkCost = parseFloat(gp.price);
+    }
+
+    const markup = price_markup_percent != null ? parseFloat(price_markup_percent) : null;
+    let newPrice = null;
+
+    if (g2bulkCost != null && markup != null && !isNaN(markup)) {
+      newPrice = Math.round(g2bulkCost * (1 + markup / 100) * 100) / 100;
+    }
+
+    if (newPrice != null) {
+      await query(`UPDATE \`${tbl}\` SET price = ?, price_markup_percent = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [newPrice, markup, req.params.id]);
+    } else {
+      await query(`UPDATE \`${tbl}\` SET price_markup_percent = ? WHERE id = ?`, [markup, req.params.id]);
+    }
+
+    res.json({ success: true, price: newPrice, markup });
   } catch (err) { sendError(res, err, 'PUT /packages/:id/markup'); }
 });
 
