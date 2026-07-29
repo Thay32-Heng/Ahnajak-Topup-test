@@ -27,47 +27,42 @@ const DatabaseExportImport: React.FC = () => {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      // Fetch all data from relevant tables
-      const [
-        gamesResult,
-        packagesResult,
-        specialPackagesResult,
-        siteSettingsResult,
-        verificationConfigsResult,
-        paymentQrResult,
-        gatewaysResult,
-      ] = await Promise.all([
-        db.from("games").select("*").order("sort_order"),
-        db.from("packages").select("*").order("sort_order"),
-        db.from("special_packages").select("*").order("sort_order"),
-        db.from("site_settings").select("*"),
-        db.from("game_verification_configs").select("*"),
-        db.from("payment_qr_settings").select("*"),
-        db.from("payment_gateways").select("*"),
-      ]);
+      async function safeFetch<T>(name: string, fetch: () => Promise<{ data: T | null; error: any }>): Promise<T[]> {
+        try {
+          const result = await fetch();
+          if (result.error) {
+            console.warn(`Export: ${name} failed`, result.error);
+            return [];
+          }
+          return result.data || [];
+        } catch (err) {
+          console.warn(`Export: ${name} error`, err);
+          return [];
+        }
+      }
 
-      // Check for errors
-      if (gamesResult.error) throw gamesResult.error;
-      if (packagesResult.error) throw packagesResult.error;
-      if (specialPackagesResult.error) throw specialPackagesResult.error;
-      if (siteSettingsResult.error) throw siteSettingsResult.error;
-      if (verificationConfigsResult.error) throw verificationConfigsResult.error;
-      if (paymentQrResult.error) throw paymentQrResult.error;
-      if (gatewaysResult.error) throw gatewaysResult.error;
+      const [games, packages, specialPackages, siteSettings, verificationConfigs, paymentQrSettings, paymentGateways] = await Promise.all([
+        safeFetch('games', () => db.from("games").select("*").order("sort_order")),
+        safeFetch('packages', () => db.from("packages").select("*").order("sort_order")),
+        safeFetch('special_packages', () => db.from("special_packages").select("*").order("sort_order")),
+        safeFetch('site_settings', () => db.from("site_settings").select("*")),
+        safeFetch('game_verification_configs', () => db.from("game_verification_configs").select("*")),
+        safeFetch('payment_qr_settings', () => db.from("payment_qr_settings").select("*")),
+        safeFetch('payment_gateways', () => db.from("payment_gateways").select("*")),
+      ]);
 
       const exportData: ExportData = {
         version: "1.0",
         exportedAt: new Date().toISOString(),
-        games: gamesResult.data || [],
-        packages: packagesResult.data || [],
-        specialPackages: specialPackagesResult.data || [],
-        siteSettings: siteSettingsResult.data || [],
-        gameVerificationConfigs: verificationConfigsResult.data || [],
-        paymentQrSettings: paymentQrResult.data || [],
-        paymentGateways: gatewaysResult.data || [],
+        games,
+        packages,
+        specialPackages,
+        siteSettings,
+        gameVerificationConfigs: verificationConfigs,
+        paymentQrSettings,
+        paymentGateways,
       };
 
-      // Create and download JSON file
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -78,9 +73,12 @@ const DatabaseExportImport: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      const totalGames = games.length;
+      const totalPackages = packages.length;
+      const hasWarnings = !paymentGateways.length;
       toast({
-        title: "✅ Export Successful",
-        description: `Exported ${exportData.games.length} games, ${exportData.packages.length} packages, ${exportData.specialPackages.length} special packages`,
+        title: `✅ Export Successful`,
+        description: `Exported ${totalGames} games, ${totalPackages} packages` + (hasWarnings ? ' (payment gateways unavailable)' : ''),
       });
     } catch (error: any) {
       console.error("Export error:", error);
