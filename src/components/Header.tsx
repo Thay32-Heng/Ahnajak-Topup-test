@@ -38,7 +38,7 @@ const Header: React.FC = () => {
 
   return (
     <header 
-      className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 flex items-center bg-zinc-950/20 backdrop-blur-md border-b border-zinc-800/30 transition-all duration-300"
+      className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 flex items-center bg-white/70 dark:bg-zinc-950/20 backdrop-blur-md border-b border-zinc-200/30 dark:border-zinc-800/30 transition-all duration-300"
       style={{
         height: `${headerHeight}px`,
         backgroundImage: settings.headerImage ? `url(${settings.headerImage})` : undefined,
@@ -47,7 +47,7 @@ const Header: React.FC = () => {
       }}
     >
       {settings.headerImage && (
-        <div className="absolute inset-0 bg-zinc-950/40 backdrop-blur-md" />
+        <div className="absolute inset-0 bg-white/60 dark:bg-zinc-950/40 backdrop-blur-md" />
       )}
       
       <div 
@@ -89,7 +89,7 @@ const Header: React.FC = () => {
               placeholder="ស្វែងរកហ្គេម..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-9 h-10 bg-zinc-900/60 border border-zinc-700/50 rounded-full text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-gold/50 focus:ring-1 focus:ring-gold/20 transition-all"
+              className="w-full pl-10 pr-9 h-10 bg-white dark:bg-zinc-900/60 border border-zinc-300 dark:border-zinc-700/50 rounded-full text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 outline-none focus:border-gold/50 focus:ring-1 focus:ring-gold/20 transition-all"
             />
             {searchQuery && (
               <button
