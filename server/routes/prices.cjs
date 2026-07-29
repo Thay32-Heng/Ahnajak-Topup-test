@@ -16,7 +16,7 @@ async function applyMarkup(price, markupPct) {
   return Math.round(price * (1 + markupPct / 100) * 100) / 100;
 }
 
-async function updateGamePrices(apiKey, gameCode, selectedG2Ids) {
+async function updateGamePrices(apiKey, gameCode, selectedG2Ids, globalMarkup) {
   const headers = { Accept: 'application/json', 'X-API-Key': apiKey };
   const catRes = await fetch(`${G2BULK_API_URL}/games/${gameCode}/catalogue`, { headers });
   const catData = await catRes.json();
@@ -41,8 +41,9 @@ async function updateGamePrices(apiKey, gameCode, selectedG2Ids) {
     );
 
     for (const pkg of packages) {
-      const markup = pkg.price_markup_percent;
-      const newPrice = await applyMarkup(g2Price, markup);
+      // Global markup overrides per-package markup for this update
+      const effectiveMarkup = globalMarkup != null ? globalMarkup : pkg.price_markup_percent;
+      const newPrice = await applyMarkup(g2Price, effectiveMarkup);
       const oldPrice = parseFloat(pkg.price) || 0;
       if (newPrice !== oldPrice) {
         await query(`UPDATE \`${pkg.tbl}\` SET price = ? WHERE id = ?`, [newPrice, pkg.id]);
@@ -53,7 +54,7 @@ async function updateGamePrices(apiKey, gameCode, selectedG2Ids) {
         old_price: oldPrice,
         new_price: newPrice,
         cost: g2Price,
-        markup: markup || 0,
+        markup: effectiveMarkup || 0,
         table: pkg.tbl,
       });
     }
@@ -70,7 +71,8 @@ router.post('/', requireAdmin, async (req, res) => {
     }
     const apiKey = apiConfig.api_secret;
 
-    const { selectedGameIds } = req.body || {};
+    const { selectedGameIds, globalMarkup } = req.body || {};
+    const effectiveGlobalMarkup = (globalMarkup != null && !isNaN(parseFloat(globalMarkup))) ? parseFloat(globalMarkup) : null;
     let gameCodes = [];
 
     if (selectedGameIds && selectedGameIds.length > 0) {
@@ -99,7 +101,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
     for (const code of gameCodes) {
       try {
-        const results = await updateGamePrices(apiKey, code);
+        const results = await updateGamePrices(apiKey, code, undefined, effectiveGlobalMarkup);
         allDetails.push(...results);
       } catch (err) {
         errors++;

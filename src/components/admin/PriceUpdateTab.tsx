@@ -39,6 +39,7 @@ const PriceUpdateTab: React.FC = () => {
   const [selectedGames, setSelectedGames] = useState<Set<string>>(new Set());
   const [collapsedGames, setCollapsedGames] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [globalMarkup, setGlobalMarkup] = useState('');
   const [updateResult, setUpdateResult] = useState<{
     g2bulk_prices_synced: number;
     packages_updated: number;
@@ -166,8 +167,10 @@ const PriceUpdateTab: React.FC = () => {
     setUpdateResult(null);
     try {
       toast({ title: 'Updating prices...', description: 'Fetching G2Bulk prices and applying markups.' });
+      const globalVal = globalMarkup === '' ? null : parseFloat(globalMarkup);
       const { data } = await api.post('/update-prices', {
         selectedGameIds: Array.from(selectedGames),
+        globalMarkup: globalVal,
       });
       if ((data as any)?.success) {
         setUpdateResult(data as any);
@@ -260,16 +263,38 @@ const PriceUpdateTab: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Search games..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-10 border-gold/30"
-        />
-      </div>
+      {/* Global Markup + Search */}
+      <Card className="border-gold/30">
+        <CardContent className="p-4 flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium whitespace-nowrap">Global Markup:</label>
+            <div className="relative w-24">
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="%"
+                value={globalMarkup}
+                onChange={e => setGlobalMarkup(e.target.value)}
+                className="text-center pr-7 border-gold/30"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {globalMarkup ? `Will apply +${globalMarkup}% to all selected games on Update` : ''}
+            </span>
+          </div>
+          <div className="flex-1" />
+          <div className="relative w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search games..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-10 border-gold/30"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Markup per game */}
       <div className="space-y-3">
