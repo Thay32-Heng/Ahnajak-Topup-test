@@ -183,21 +183,33 @@ router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
     await query('DELETE FROM games');
 
     // Insert in FK order (parents first)
-    if (games.length > 0) {
-      const placeholders = games.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
-      const flat = games.flatMap(g => [g.id, g.name, g.image || null, g.slug || null, g.g2bulk_category_id || null, g.default_package_icon || null, g.cover_image || null, g.tags ? JSON.stringify(g.tags) : null]);
+    const validGames = games.filter(g => g.id && g.name);
+    if (games.length !== validGames.length) {
+      console.warn(`Import: skipped ${games.length - validGames.length} game(s) with missing id or name`);
+    }
+    if (validGames.length > 0) {
+      const placeholders = validGames.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const flat = validGames.flatMap(g => [g.id, g.name, g.image || null, g.slug || null, g.g2bulk_category_id || null, g.default_package_icon || null, g.cover_image || null, g.tags ? JSON.stringify(g.tags) : null]);
       await query(`INSERT INTO games (id, name, image, slug, g2bulk_category_id, default_package_icon, cover_image, tags) VALUES ${placeholders}`, flat);
     }
 
-    if (packages.length > 0) {
-      const placeholders = packages.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
-      const flat = packages.flatMap(p => [p.id, p.game_id, p.name, String(p.amount), p.price, p.icon || null, p.sort_order ?? 0, p.label || null, p.label_bg_color || null, p.label_text_color || null, p.label_icon || null, p.g2bulk_product_id || null, p.g2bulk_type_id || null, p.quantity ?? null, p.points || 0]);
+    const validPackages = packages.filter(p => p.id && p.game_id && p.name);
+    if (packages.length !== validPackages.length) {
+      console.warn(`Import: skipped ${packages.length - validPackages.length} package(s) with missing required fields`);
+    }
+    if (validPackages.length > 0) {
+      const placeholders = validPackages.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const flat = validPackages.flatMap(p => [p.id, p.game_id, p.name, String(p.amount != null ? p.amount : 0), p.price != null ? p.price : 0, p.icon || null, p.sort_order ?? 0, p.label || null, p.label_bg_color || null, p.label_text_color || null, p.label_icon || null, p.g2bulk_product_id || null, p.g2bulk_type_id || null, p.quantity ?? null, p.points || 0]);
       await query(`INSERT INTO packages (id, game_id, name, amount, price, icon, sort_order, label, label_bg_color, label_text_color, label_icon, g2bulk_product_id, g2bulk_type_id, quantity, points) VALUES ${placeholders}`, flat);
     }
 
-    if (specialPackages.length > 0) {
-      const placeholders = specialPackages.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
-      const flat = specialPackages.flatMap(p => [p.id, p.game_id, p.name, String(p.amount), p.price, p.icon || null, p.sort_order ?? 0, p.label || null, p.label_bg_color || null, p.label_text_color || null, p.label_icon || null, p.g2bulk_product_id || null, p.g2bulk_type_id || null, p.quantity ?? null, p.points || 0]);
+    const validSpecial = specialPackages.filter(p => p.id && p.game_id && p.name);
+    if (specialPackages.length !== validSpecial.length) {
+      console.warn(`Import: skipped ${specialPackages.length - validSpecial.length} special package(s) with missing required fields`);
+    }
+    if (validSpecial.length > 0) {
+      const placeholders = validSpecial.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const flat = validSpecial.flatMap(p => [p.id, p.game_id, p.name, String(p.amount != null ? p.amount : 0), p.price != null ? p.price : 0, p.icon || null, p.sort_order ?? 0, p.label || null, p.label_bg_color || null, p.label_text_color || null, p.label_icon || null, p.g2bulk_product_id || null, p.g2bulk_type_id || null, p.quantity ?? null, p.points || 0]);
       await query(`INSERT INTO special_packages (id, game_id, name, amount, price, icon, sort_order, label, label_bg_color, label_text_color, label_icon, g2bulk_product_id, g2bulk_type_id, quantity, points) VALUES ${placeholders}`, flat);
     }
 
@@ -243,9 +255,9 @@ router.post('/import-database', requireAuth, requireAdmin, async (req, res) => {
     res.json({
       success: true,
       imported: {
-        games: games.length,
-        packages: packages.length,
-        specialPackages: specialPackages.length,
+        games: validGames.length,
+        packages: validPackages.length,
+        specialPackages: validSpecial.length,
         siteSettings: siteSettings.length,
         paymentGateways: paymentGateways?.length || 0,
       },

@@ -115,14 +115,15 @@ const DatabaseExportImport: React.FC = () => {
       const result = await api.post('/admin/import-database', data);
       if (result.error) throw new Error(result.error.message || result.error);
 
+      const imported = result.data?.imported || {};
       setImportResult({
         success: true,
-        message: `Successfully imported ${data.games.length} games, ${data.packages.length} packages, ${data.specialPackages.length} special packages`,
+        message: `Imported ${imported.games || 0} games, ${imported.packages || 0} packages, ${imported.specialPackages || 0} special packages`,
       });
 
       toast({
         title: "✅ Import Successful",
-        description: "Database restored successfully. Please refresh the page.",
+        description: `${imported.games || 0} games, ${imported.packages || 0} packages restored. Refresh page.`,
       });
 
       setTimeout(() => window.location.reload(), 2000);
