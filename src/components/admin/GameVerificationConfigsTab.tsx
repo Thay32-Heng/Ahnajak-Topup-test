@@ -352,17 +352,38 @@ const GameVerificationConfigsTab: React.FC = () => {
 
       if (error) throw new Error(error.message);
 
-      const servers = data?.data?.servers;
-      if (!servers || Object.keys(servers).length === 0) {
-        toast({ title: 'No servers found', description: `${config.game_name} has no predefined servers.` });
+      console.log('[FetchServers] raw response:', JSON.stringify(data));
+
+      // Handle multiple G2Bulk response formats
+      const serversRaw = data?.data?.servers || data?.servers || data?.data?.zones || data?.zones || data?.data?.regions || data?.regions || null;
+      if (!serversRaw) {
+        toast({ title: 'Unexpected response', description: `G2Bulk returned no server data for ${config.api_code}. Check the console for details.`, variant: 'destructive' });
         return;
       }
 
-      // Convert servers object to zone_options array
-      const zoneOptions: ZoneOption[] = Object.entries(servers).map(([key, value]) => ({
-        value: String(key),
-        label: String(value),
-      }));
+      let zoneOptions: ZoneOption[];
+
+      if (Array.isArray(serversRaw)) {
+        // Array format: [{id: "1", name: "Server 1"}, ...] or ["Server 1", "Server 2", ...]
+        zoneOptions = serversRaw.map((s: any) => {
+          if (typeof s === 'string') return { value: s, label: s };
+          return { value: String(s.id || s.value || s.code || s), label: String(s.name || s.label || s) };
+        });
+      } else if (typeof serversRaw === 'object') {
+        // Object format: { "1": "Server 1", "2": "Server 2" }
+        zoneOptions = Object.entries(serversRaw).map(([key, val]) => ({
+          value: String(key),
+          label: String(val),
+        }));
+      } else {
+        toast({ title: 'Unexpected format', description: 'Server data is neither an array nor an object.', variant: 'destructive' });
+        return;
+      }
+
+      if (zoneOptions.length === 0) {
+        toast({ title: 'No servers found', description: `${config.game_name} has no predefined servers.` });
+        return;
+      }
 
       // Save to database
       const { error: updateError } = await db

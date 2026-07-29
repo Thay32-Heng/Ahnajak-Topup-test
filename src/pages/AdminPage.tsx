@@ -90,6 +90,7 @@ import PreorderGamesTab from "@/components/admin/PreorderGamesTab";
 import PreorderOrdersTab from "@/components/admin/PreorderOrdersTab";
 import SalesActivityTab from "@/components/admin/SalesActivityTab";
 import PriceUpdateTab from "@/components/admin/PriceUpdateTab";
+import ProductCatalogTab from "@/components/admin/ProductCatalogTab";
 import CdnMigrationTab from "@/components/admin/CdnMigrationTab";
 import PointExchangeTab from "@/components/admin/PointExchangeTab";
 import AiTab from "@/components/admin/AiTab";
@@ -657,6 +658,13 @@ const AdminPage: React.FC = () => {
               >
                 <DollarSign className="w-4 h-4 mr-2 shrink-0" />
                 <span>Prices</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="product-catalog"
+                className="w-full justify-start data-[state=active]:bg-gold data-[state=active]:text-primary-foreground text-xs sm:text-sm"
+              >
+                <Database className="w-4 h-4 mr-2 shrink-0" />
+                <span>Product Catalog</span>
               </TabsTrigger>
               <TabsTrigger
                 value="backup"
@@ -3185,6 +3193,11 @@ const AdminPage: React.FC = () => {
               {/* Price Update */}
               <TabsContent value="price-update">
                 <PriceUpdateTab />
+              </TabsContent>
+
+              {/* Product Catalog */}
+              <TabsContent value="product-catalog">
+                <ProductCatalogTab />
               </TabsContent>
 
               {/* Database Backup */}

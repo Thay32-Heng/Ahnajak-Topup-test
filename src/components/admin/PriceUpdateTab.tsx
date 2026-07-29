@@ -1,15 +1,14 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
-import { db } from '@/integrations/db/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
+import { useSite } from '@/contexts/SiteContext';
+import api from '@/lib/api';
 import {
-  RefreshCw, Save, Clock, DollarSign, Percent, TrendingUp, Check,
+  RefreshCw, Save, Clock, DollarSign, Check, Search, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 interface PackageMarkup {
@@ -19,16 +18,27 @@ interface PackageMarkup {
   g2bulk_product_id: string | null;
   price_markup_percent: number | null;
   cost_price: number | null;
+  game_id: string;
   game_name: string;
   table: string;
 }
 
+interface GameGroup {
+  id: string;
+  name: string;
+  packages: PackageMarkup[];
+}
+
 const PriceUpdateTab: React.FC = () => {
-  const [packages, setPackages] = useState<PackageMarkup[]>([]);
+  const { games: allGames } = useSite();
+  const [gameGroups, setGameGroups] = useState<GameGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editedMarkups, setEditedMarkups] = useState<Record<string, string>>({});
+  const [selectedGames, setSelectedGames] = useState<Set<string>>(new Set());
+  const [collapsedGames, setCollapsedGames] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
   const [updateResult, setUpdateResult] = useState<{
     g2bulk_prices_synced: number;
     packages_updated: number;
@@ -38,59 +48,87 @@ const PriceUpdateTab: React.FC = () => {
   const fetchPackages = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch g2bulk products for cost lookup
-      const { data: g2products } = await db
-        .from('g2bulk_products')
-        .select('g2bulk_product_id, price');
+      const { data } = await api.get('/admin/g2bulk-products');
+      const products = Array.isArray(data) ? data : [];
       const costMap = new Map<string, number>();
-      g2products?.forEach(p => costMap.set(p.g2bulk_product_id, Number(p.price)));
-
-      // Fetch games for name lookup
-      const { data: games } = await db.from('games').select('id, name');
-      const gameMap = new Map<string, string>();
-      games?.forEach(g => gameMap.set(g.id, g.name));
+      for (const p of products) costMap.set(p.g2bulk_product_id, Number(p.price) || 0);
 
       const allPkgs: PackageMarkup[] = [];
 
-      // Fetch from all 3 tables
-      const tables = [
-        { name: 'packages', label: 'Regular' },
-        { name: 'special_packages', label: 'Special' },
-        { name: 'preorder_packages', label: 'Preorder' },
-      ] as const;
+      for (const game of allGames) {
+        if (!game.id) continue;
+        const pkgData = (game.packages || []).filter((p: any) => p.g2bulk_product_id);
+        const spData = (game.specialPackages || []).filter((p: any) => p.g2bulk_product_id);
 
-      for (const t of tables) {
-        const { data } = await db
-          .from(t.name)
-          .select('id, name, price, g2bulk_product_id, price_markup_percent, game_id')
-          .not('g2bulk_product_id', 'is', null)
-          .order('name');
-
-        if (data) {
-          for (const pkg of data) {
-            allPkgs.push({
-              id: pkg.id,
-              name: pkg.name,
-              price: Number(pkg.price),
-              g2bulk_product_id: pkg.g2bulk_product_id,
-              price_markup_percent: pkg.price_markup_percent != null ? Number(pkg.price_markup_percent) : null,
-              cost_price: pkg.g2bulk_product_id ? (costMap.get(pkg.g2bulk_product_id) ?? null) : null,
-              game_name: gameMap.get(pkg.game_id) || 'Unknown',
-              table: t.name,
-            });
-          }
+        for (const pkg of pkgData) {
+          allPkgs.push({
+            id: pkg.id,
+            name: pkg.name,
+            price: Number(pkg.price) || 0,
+            g2bulk_product_id: pkg.g2bulk_product_id,
+            price_markup_percent: pkg.price_markup_percent != null ? Number(pkg.price_markup_percent) : null,
+            cost_price: costMap.get(pkg.g2bulk_product_id) ?? null,
+            game_id: game.id,
+            game_name: game.name,
+            table: 'packages',
+          });
+        }
+        for (const pkg of spData) {
+          allPkgs.push({
+            id: pkg.id,
+            name: pkg.name,
+            price: Number(pkg.price) || 0,
+            g2bulk_product_id: pkg.g2bulk_product_id,
+            price_markup_percent: pkg.price_markup_percent != null ? Number(pkg.price_markup_percent) : null,
+            cost_price: costMap.get(pkg.g2bulk_product_id) ?? null,
+            game_id: game.id,
+            game_name: game.name,
+            table: 'special_packages',
+          });
         }
       }
 
-      setPackages(allPkgs);
+      const grouped: GameGroup[] = [];
+      const seen = new Set<string>();
+      for (const pkg of allPkgs) {
+        if (!seen.has(pkg.game_id)) {
+          seen.add(pkg.game_id);
+          grouped.push({ id: pkg.game_id, name: pkg.game_name, packages: [] });
+        }
+        const g = grouped.find(gr => gr.id === pkg.game_id);
+        if (g) g.packages.push(pkg);
+      }
+
+      setGameGroups(grouped);
+      setSelectedGames(new Set(grouped.map(g => g.id)));
     } catch (err) {
       console.error('Error loading packages:', err);
+      toast({ title: 'Failed to load packages', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [allGames]);
 
   useEffect(() => { fetchPackages(); }, [fetchPackages]);
+
+  const toggleGame = (gameId: string) => {
+    setSelectedGames(prev => {
+      const next = new Set(prev);
+      if (next.has(gameId)) next.delete(gameId); else next.add(gameId);
+      return next;
+    });
+  };
+
+  const selectAllGames = () => setSelectedGames(new Set(gameGroups.map(g => g.id)));
+  const clearAllGames = () => setSelectedGames(new Set());
+
+  const toggleCollapse = (gameId: string) => {
+    setCollapsedGames(prev => {
+      const next = new Set(prev);
+      if (next.has(gameId)) next.delete(gameId); else next.add(gameId);
+      return next;
+    });
+  };
 
   const handleMarkupChange = (pkgId: string, value: string) => {
     setEditedMarkups(prev => ({ ...prev, [pkgId]: value }));
@@ -100,29 +138,23 @@ const PriceUpdateTab: React.FC = () => {
     setSaving(true);
     try {
       const entries = Object.entries(editedMarkups);
-      if (entries.length === 0) {
-        toast({ title: 'No changes to save' });
-        setSaving(false);
-        return;
-      }
+      if (!entries.length) { toast({ title: 'No changes to save' }); setSaving(false); return; }
 
       for (const [pkgId, val] of entries) {
-        const pkg = packages.find(p => p.id === pkgId);
-        if (!pkg) continue;
-
         const markupVal = val === '' ? null : parseFloat(val);
-
-        await db
-          .from(pkg.table as 'packages' | 'special_packages' | 'preorder_packages')
-          .update({ price_markup_percent: markupVal })
-          .eq('id', pkgId);
+        for (const group of gameGroups) {
+          for (const pkg of group.packages) {
+            if (pkg.id === pkgId) {
+              await api.put(`/admin/packages/${pkgId}/markup`, { price_markup_percent: markupVal });
+            }
+          }
+        }
       }
 
       toast({ title: `Saved markup for ${entries.length} packages` });
       setEditedMarkups({});
-      await fetchPackages();
+      fetchPackages();
     } catch (err) {
-      console.error(err);
       toast({ title: 'Failed to save markups', variant: 'destructive' });
     } finally {
       setSaving(false);
@@ -133,24 +165,22 @@ const PriceUpdateTab: React.FC = () => {
     setUpdating(true);
     setUpdateResult(null);
     try {
-      toast({ title: 'Updating prices...', description: 'Fetching latest G2Bulk prices and applying markups.' });
-
-      const { data, error } = await db.functions.invoke('update-prices');
-
-      if (error) throw error;
-
-      if (data?.success) {
-        setUpdateResult(data.data);
+      toast({ title: 'Updating prices...', description: 'Fetching G2Bulk prices and applying markups.' });
+      const { data } = await api.post('/update-prices', {
+        selectedGameIds: Array.from(selectedGames),
+      });
+      if ((data as any)?.success) {
+        setUpdateResult(data as any);
         toast({
           title: 'Prices updated!',
-          description: `${data.data.packages_updated} packages updated from ${data.data.g2bulk_prices_synced} G2Bulk prices`,
+          description: `${(data as any).packages_updated} packages updated`,
         });
-        await fetchPackages();
+        fetchPackages();
       } else {
-        toast({ title: 'Update failed', description: data?.error, variant: 'destructive' });
+        toast({ title: 'Update failed', description: (data as any)?.error || 'Unknown error', variant: 'destructive' });
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed';
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed';
       toast({ title: 'Price update failed', description: msg, variant: 'destructive' });
     } finally {
       setUpdating(false);
@@ -162,15 +192,9 @@ const PriceUpdateTab: React.FC = () => {
     return pkg.price_markup_percent != null ? String(pkg.price_markup_percent) : '';
   };
 
-  const calcPreview = (pkg: PackageMarkup): number | null => {
-    const raw = getMarkupValue(pkg);
-    if (!raw || pkg.cost_price == null) return null;
-    const m = parseFloat(raw);
-    if (isNaN(m)) return null;
-    return Math.round(pkg.cost_price * (1 + m / 100) * 100) / 100;
-  };
-
-  const hasChanges = Object.keys(editedMarkups).length > 0;
+  const filteredGroups = gameGroups.filter(g =>
+    !search || g.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -185,7 +209,6 @@ const PriceUpdateTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header Card */}
       <Card className="border-gold/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -193,40 +216,36 @@ const PriceUpdateTab: React.FC = () => {
             Auto Price Update
           </CardTitle>
           <CardDescription>
-            Set markup % for each package. Prices auto-update daily at <strong>7:00 AM</strong> based on G2Bulk cost + your markup.
+            Select games to update, set markup %, then click Update Prices. Prices are calculated as G2Bulk cost + markup.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
             <Button
               onClick={handleUpdateNow}
-              disabled={updating}
+              disabled={updating || selectedGames.size === 0}
               className="bg-gold hover:bg-gold/90 text-primary-foreground"
             >
-              {updating ? (
-                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Updating...</>
-              ) : (
-                <><RefreshCw className="w-4 h-4 mr-2" />Update Prices Now</>
-              )}
+              {updating ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Updating...</> : <><RefreshCw className="w-4 h-4 mr-2" />Update Prices</>}
             </Button>
-
             <div className="flex items-center gap-2 px-3 py-2 bg-secondary/50 rounded-lg text-sm text-muted-foreground">
               <Clock className="w-4 h-4" />
-              Auto runs daily at 7:00 AM
+              {selectedGames.size} / {gameGroups.length} games selected
             </div>
+            <Button variant="outline" size="sm" onClick={selectAllGames}>Select All</Button>
+            <Button variant="outline" size="sm" onClick={clearAllGames}>Clear</Button>
           </div>
 
           {updateResult && (
             <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2">
               <div className="flex items-center gap-2 text-green-600 font-semibold">
                 <Check className="w-5 h-5" />
-                Updated {updateResult.packages_updated} packages (synced {updateResult.g2bulk_prices_synced} G2Bulk prices)
+                Updated {updateResult.packages_updated} packages
               </div>
               {updateResult.details.length > 0 && (
-                <div className="mt-2 space-y-1 text-sm">
+                <div className="max-h-32 overflow-y-auto space-y-1 text-sm">
                   {updateResult.details.map((d, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <TrendingUp className="w-3 h-3" />
                       <span className="font-medium">{d.name}</span>:
                       <span className="text-muted-foreground">${d.old_price.toFixed(2)}</span>
                       <span>→</span>
@@ -241,83 +260,107 @@ const PriceUpdateTab: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Markup Table */}
-      <Card className="border-gold/30">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Percent className="w-5 h-5 text-gold" />
-            Package Markup Settings
-          </CardTitle>
-          {hasChanges && (
-            <Button onClick={handleSaveMarkups} disabled={saving} size="sm" className="bg-gold hover:bg-gold/90 text-primary-foreground">
-              {saving ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Save Markups</>}
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {packages.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No packages with G2Bulk product linked. Link packages first in the Games tab.
-            </p>
-          ) : (
-            <div className="overflow-auto max-h-[600px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Game</TableHead>
-                    <TableHead>Package</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Cost (G2Bulk)</TableHead>
-                    <TableHead className="text-right">Current Price</TableHead>
-                    <TableHead className="text-center w-32">Markup %</TableHead>
-                    <TableHead className="text-right">Preview Price</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {packages.map(pkg => {
-                    const preview = calcPreview(pkg);
-                    const isEdited = editedMarkups[pkg.id] !== undefined;
-                    return (
-                      <TableRow key={`${pkg.table}_${pkg.id}`}>
-                        <TableCell className="font-medium text-sm">{pkg.game_name}</TableCell>
-                        <TableCell className="text-sm">{pkg.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {pkg.table === 'packages' ? 'Regular' : pkg.table === 'special_packages' ? 'Special' : 'Preorder'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {pkg.cost_price != null ? `$${pkg.cost_price.toFixed(2)}` : '—'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">${pkg.price.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            placeholder="e.g. 15"
-                            value={getMarkupValue(pkg)}
-                            onChange={e => handleMarkupChange(pkg.id, e.target.value)}
-                            className={`w-24 text-center text-sm ${isEdited ? 'border-gold' : 'border-border'}`}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {preview != null ? (
-                            <span className={preview !== pkg.price ? 'text-gold font-semibold' : 'text-muted-foreground'}>
-                              ${preview.toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search games..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-10 border-gold/30"
+        />
+      </div>
+
+      {/* Markup per game */}
+      <div className="space-y-3">
+        {filteredGroups.map(group => (
+          <Card key={group.id} className="border-gold/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <Checkbox
+                  checked={selectedGames.has(group.id)}
+                  onCheckedChange={() => toggleGame(group.id)}
+                />
+                <button
+                  onClick={() => toggleCollapse(group.id)}
+                  className="flex-1 flex items-center justify-between text-left"
+                >
+                  <span className="font-bold text-sm">{group.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {group.packages.length} packages
+                    {collapsedGames.has(group.id) ? <ChevronDown className="w-4 h-4 ml-1 inline" /> : <ChevronUp className="w-4 h-4 ml-1 inline" />}
+                  </span>
+                </button>
+              </div>
+
+              {!collapsedGames.has(group.id) && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground border-b border-border">
+                        <th className="text-left py-2 font-medium">Package</th>
+                        <th className="text-right py-2 font-medium">Cost</th>
+                        <th className="text-right py-2 font-medium">Price</th>
+                        <th className="text-center py-2 font-medium w-24">Markup %</th>
+                        <th className="text-right py-2 font-medium">Preview</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.packages.map(pkg => {
+                        const raw = getMarkupValue(pkg);
+                        const preview = raw && pkg.cost_price != null
+                          ? Math.round(pkg.cost_price * (1 + parseFloat(raw) / 100) * 100) / 100
+                          : null;
+                        const isEdited = editedMarkups[pkg.id] !== undefined;
+                        return (
+                          <tr key={`${pkg.table}_${pkg.id}`} className="border-b border-border/50">
+                            <td className="py-2 text-sm">{pkg.name}</td>
+                            <td className="py-2 text-right text-muted-foreground">
+                              {pkg.cost_price != null ? `$${pkg.cost_price.toFixed(2)}` : '\u2014'}
+                            </td>
+                            <td className="py-2 text-right font-medium">${pkg.price.toFixed(2)}</td>
+                            <td className="py-2 text-center">
+                              <Input
+                                type="number"
+                                step="0.1"
+                                placeholder="%"
+                                value={raw}
+                                onChange={e => handleMarkupChange(pkg.id, e.target.value)}
+                                className={`w-20 text-center text-sm mx-auto ${isEdited ? 'border-gold' : ''}`}
+                              />
+                            </td>
+                            <td className="py-2 text-right">
+                              {preview != null ? (
+                                <span className={preview !== pkg.price ? 'text-gold font-semibold' : 'text-muted-foreground'}>
+                                  ${preview.toFixed(2)}
+                                </span>
+                              ) : '\u2014'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {filteredGroups.length === 0 && (
+        <p className="text-center text-muted-foreground py-8">
+          {search ? 'No games match your search.' : 'No packages linked to G2Bulk. Link packages first in the Games tab.'}
+        </p>
+      )}
+
+      {Object.keys(editedMarkups).length > 0 && (
+        <div className="sticky bottom-0 bg-background border-t border-border p-4 flex justify-end">
+          <Button onClick={handleSaveMarkups} disabled={saving} className="bg-gold hover:bg-gold/90 text-primary-foreground">
+            {saving ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Save Markups ({Object.keys(editedMarkups).length})</>}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

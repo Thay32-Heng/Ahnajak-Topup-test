@@ -25,7 +25,7 @@ interface UseGameVerificationConfigReturn {
   zoneOptions: ZoneOption[] | null;
 }
 
-export const useGameVerificationConfig = (gameName: string | undefined): UseGameVerificationConfigReturn => {
+export const useGameVerificationConfig = (gameName: string | undefined, apiCode?: string): UseGameVerificationConfigReturn => {
   const [config, setConfig] = useState<VerificationConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,29 +39,42 @@ export const useGameVerificationConfig = (gameName: string | undefined): UseGame
     const fetchConfig = async () => {
       setIsLoading(true);
       try {
-        // Try exact match first
-        const { data: exactMatches } = await db
+        const { data: allConfigs } = await db
           .from('game_verification_configs')
           .select('*')
-          .eq('is_active', true)
-          .ilike('game_name', gameName);
+          .eq('is_active', true);
 
         let data = null;
-        if (exactMatches && exactMatches.length > 0) {
-          // Prioritize the one requiring zone or having zone options
-          data = exactMatches.find(m => m.requires_zone) || exactMatches[0];
-        }
+        if (allConfigs && allConfigs.length > 0) {
+          const activeRows = allConfigs.filter((c: any) => c.is_active);
+          const name = gameName.toLowerCase();
 
-        // If not found, try partial match
-        if (!data) {
-          const { data: partialMatches } = await db
-            .from('game_verification_configs')
-            .select('*')
-            .eq('is_active', true)
-            .ilike('game_name', `%${gameName}%`);
-          
-          if (partialMatches && partialMatches.length > 0) {
-            data = partialMatches.find(m => m.requires_zone) || partialMatches[0];
+          // Priority 1: Exact game_name match (case-insensitive)
+          data = activeRows.find((c: any) => c.game_name.toLowerCase() === name);
+          if (data) data = { ...data };
+
+          // Priority 2: game_name contains the search term
+          if (!data) {
+            data = activeRows.find((c: any) => c.game_name.toLowerCase().includes(name));
+            if (data) data = { ...data };
+          }
+
+          // Priority 3: search term contains game_name
+          if (!data) {
+            data = activeRows.find((c: any) => name.includes(c.game_name.toLowerCase()));
+            if (data) data = { ...data };
+          }
+
+          // Priority 4: api_code matches g2bulkCategoryId
+          if (!data && apiCode) {
+            data = activeRows.find((c: any) => c.api_code?.toLowerCase() === apiCode.toLowerCase());
+            if (data) data = { ...data };
+          }
+
+          // Priority 5: api_code contains the search term
+          if (!data) {
+            data = activeRows.find((c: any) => c.api_code?.toLowerCase().includes(name));
+            if (data) data = { ...data };
           }
         }
 
@@ -79,7 +92,7 @@ export const useGameVerificationConfig = (gameName: string | undefined): UseGame
     };
 
     fetchConfig();
-  }, [gameName]);
+  }, [gameName, apiCode]);
 
   return {
     config,

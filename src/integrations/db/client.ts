@@ -106,8 +106,17 @@ export const db = {
         else if (f.op === 'neq') rows = rows.filter((r: any) => r[f.col] !== f.val);
         else if (f.op === 'gte') rows = rows.filter((r: any) => r[f.col] >= f.val);
         else if (f.op === 'ilike') {
-          const pattern = String(f.val).replace(/%/g, '').toLowerCase();
-          rows = rows.filter((r: any) => String(r[f.col] || '').toLowerCase().includes(pattern));
+          const raw = String(f.val);
+          const hasLeadingWildcard = raw.startsWith('%');
+          const hasTrailingWildcard = raw.endsWith('%');
+          const pattern = raw.replace(/%/g, '').toLowerCase();
+          rows = rows.filter((r: any) => {
+            const val = String(r[f.col] || '').toLowerCase();
+            if (hasLeadingWildcard && hasTrailingWildcard) return val.includes(pattern);
+            if (hasLeadingWildcard) return val.endsWith(pattern);
+            if (hasTrailingWildcard) return val.startsWith(pattern);
+            return val === pattern;
+          });
         } else rows = rows.filter((r: any) => r[f.col] === f.val);
       }
 

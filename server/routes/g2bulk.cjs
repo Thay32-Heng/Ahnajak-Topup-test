@@ -84,7 +84,23 @@ router.post('/', async (req, res) => {
     }
     case 'get_game_catalogue': url = `/games/${params.game_code}/catalogue`; break;
     case 'get_game_fields': url = '/games/fields'; method = 'POST'; body = { game: params.game_code }; break;
-    case 'get_game_servers': url = '/games/servers'; method = 'POST'; body = { game: params.game_code }; break;
+    case 'get_game_servers': {
+      try {
+        const gsRes = await fetch(`${G2BULK_API_URL}/games/servers`, {
+          method: 'POST', headers, body: JSON.stringify({ game: params.game_code })
+        });
+        const gsData = await gsRes.json();
+        console.log(`[g2bulk] get_game_servers for ${params.game_code}:`, JSON.stringify(gsData).slice(0, 500));
+        // Normalize: ensure the response has data.servers
+        if (gsData.data?.servers || gsData.servers || gsData.data?.zones || gsData.zones) {
+          const servers = gsData.data?.servers || gsData.servers || gsData.data?.zones || gsData.zones;
+          return res.json({ success: true, data: { servers } });
+        }
+        return res.json(gsData);
+      } catch (e) {
+        return res.status(502).json({ success: false, error: e.message });
+      }
+    }
     case 'check_player_id': url = '/games/checkPlayerId'; method = 'POST'; body = { game: params.game_code, user_id: params.user_id, server_id: params.server_id }; break;
     case 'create_game_order': url = `/games/${params.game_code}/order`; method = 'POST'; body = { catalogue_name: params.catalogue_name, player_id: params.player_id, server_id: params.server_id, remark: params.remark, callback_url: params.callback_url }; break;
     case 'check_order_status': url = '/games/order/status'; method = 'POST'; body = { order_id: params.order_id, game: params.game_code }; break;

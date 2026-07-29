@@ -47,7 +47,7 @@ const TopupPage: React.FC = () => {
   const { cachedUserId, cachedServerId, saveToCache, hasCachedData } = useGameIdCache(game?.id);
 
   // Fetch verification config from database to check if zone is required
-  const { requiresZone: dbRequiresZone, isLoading: verifyConfigLoading, zoneOptions } = useGameVerificationConfig(game?.name);
+  const { requiresZone: dbRequiresZone, isLoading: verifyConfigLoading, zoneOptions } = useGameVerificationConfig(game?.name, game?.g2bulkCategoryId);
 
   const [userId, setUserId] = useState("");
   const [serverId, setServerId] = useState("");
@@ -770,6 +770,7 @@ const TopupPage: React.FC = () => {
 
       if (error) {
         let msg = error.message || "Verification failed";
+        let requiresServerId = false;
 
         // Try to read backend error body when the function returns non-2xx
         const anyErr = error as any;
@@ -777,9 +778,16 @@ const TopupPage: React.FC = () => {
           try {
             const body = await anyErr.context.json();
             msg = body?.error || body?.message || msg;
+            requiresServerId = body?.requiresServerId === true;
           } catch {
             // ignore JSON parse failures
           }
+        }
+
+        if (requiresServerId) {
+          setVerificationError(msg);
+          toast({ title: msg, variant: "destructive" });
+          return;
         }
 
         throw new Error(msg);

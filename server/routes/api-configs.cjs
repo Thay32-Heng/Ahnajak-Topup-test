@@ -106,4 +106,19 @@ router.delete('/g2bulk-products/:id', requireAuth, requireAdmin, async (req, res
   catch (err) { sendError(res, err, 'DELETE /g2bulk-products/:id'); }
 });
 
+// Update package markup
+router.put('/packages/:id/markup', requireAuth, requireAdmin, async (req, res) => {
+  const { price_markup_percent } = req.body;
+  try {
+    const [pkg] = await query("SELECT id, 'packages' as tbl FROM packages WHERE id = ? " +
+      "UNION ALL SELECT id, 'special_packages' as tbl FROM special_packages WHERE id = ? " +
+      "UNION ALL SELECT id, 'preorder_packages' as tbl FROM preorder_packages WHERE id = ?",
+      [req.params.id, req.params.id, req.params.id]);
+    if (!pkg.length) return res.status(404).json({ error: 'Package not found' });
+    const tbl = pkg[0].tbl;
+    await query(`UPDATE \`${tbl}\` SET price_markup_percent = ? WHERE id = ?`, [price_markup_percent, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'PUT /packages/:id/markup'); }
+});
+
 module.exports = router;
