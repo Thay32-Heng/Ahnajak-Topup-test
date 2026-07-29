@@ -51,8 +51,10 @@ const GlobalBackground: React.FC = () => {
   useEffect(() => {
     if (isLightBg) {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('ahnajak-bgTheme', 'light');
     } else {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('ahnajak-bgTheme', 'dark');
     }
   }, [isLightBg]);
 

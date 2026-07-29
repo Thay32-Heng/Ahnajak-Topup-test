@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8" />
@@ -36,6 +36,11 @@
 
 <body>
   <div id="root"></div>
+  <script>
+    var t = localStorage.getItem('ahnajak-bgTheme');
+    if (t === 'light') document.documentElement.classList.remove('dark');
+    else document.documentElement.classList.add('dark');
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
