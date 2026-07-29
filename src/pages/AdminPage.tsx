@@ -3192,7 +3192,9 @@ const AdminPage: React.FC = () => {
 
               {/* Price Update */}
               <TabsContent value="price-update">
-                <PriceUpdateTab />
+                <ErrorBoundary>
+                  <PriceUpdateTab />
+                </ErrorBoundary>
               </TabsContent>
 
               {/* Product Catalog */}
