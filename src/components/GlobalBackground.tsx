@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useSite } from '@/contexts/SiteContext';
 
 function hexToHSL(hex: string): string {
@@ -48,13 +48,17 @@ const GlobalBackground: React.FC = () => {
     return bgTheme === 'light';
   })();
 
+  const prevRef = useRef(isLightBg);
+
   useEffect(() => {
+    if (prevRef.current === isLightBg) return;
+    prevRef.current = isLightBg;
     if (isLightBg) {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('ahnajak-bgTheme', 'light');
+      document.cookie = 'ahnajak-bgTheme=light; path=/; max-age=31536000';
     } else {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('ahnajak-bgTheme', 'dark');
+      document.cookie = 'ahnajak-bgTheme=dark; path=/; max-age=31536000';
     }
   }, [isLightBg]);
 

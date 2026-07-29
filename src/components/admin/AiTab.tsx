@@ -39,17 +39,19 @@ const AiTab: React.FC = () => {
   const handleSaveAndTrain = async () => {
     setSaving(true);
     try {
-      const updates = {
+      const updates: Record<string, any> = {
         siteName: siteName,
         browserTitle: `${siteName} - Game Topup Cambodia`,
         primaryColor: primaryColor,
         accentColor: accentColor,
         bgType: bgType,
-        bgTheme: bgType === 'color' || bgType === 'gradient' ? undefined : bgTheme,
         backgroundColor: backgroundColor,
         bgImageUrl: bgImageUrl,
         bgVideoUrl: bgVideoUrl,
       };
+      if (bgType === 'image' || bgType === 'video') {
+        updates.bgTheme = bgTheme;
+      }
 
       updateSettings(updates);
       toast({
