@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { useSite } from '@/contexts/SiteContext';
 import api from '@/lib/api';
 import {
   RefreshCw, Save, Clock, DollarSign, Check, Search, ChevronDown, ChevronUp,
@@ -30,7 +29,6 @@ interface GameGroup {
 }
 
 const PriceUpdateTab: React.FC = () => {
-  const { games: allGames } = useSite();
   const [gameGroups, setGameGroups] = useState<GameGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -49,45 +47,27 @@ const PriceUpdateTab: React.FC = () => {
   const fetchPackages = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/admin/g2bulk-products');
-      const products = Array.isArray(data) ? data : [];
+      const [pkgRes, g2Res] = await Promise.all([
+        api.get('/admin/packages/linked-to-g2bulk'),
+        api.get('/admin/g2bulk-products'),
+      ]);
+
+      const packages = Array.isArray(pkgRes.data) ? pkgRes.data : [];
+      const g2Products = Array.isArray(g2Res.data) ? g2Res.data : [];
       const costMap = new Map<string, number>();
-      for (const p of products) costMap.set(p.g2bulk_product_id, Number(p.price) || 0);
+      for (const p of g2Products) costMap.set(p.g2bulk_product_id, Number(p.price) || 0);
 
-      const allPkgs: PackageMarkup[] = [];
-
-      for (const game of allGames) {
-        if (!game.id) continue;
-        const pkgData = (game.packages || []).filter((p: any) => p.g2bulk_product_id);
-        const spData = (game.specialPackages || []).filter((p: any) => p.g2bulk_product_id);
-
-        for (const pkg of pkgData) {
-          allPkgs.push({
-            id: pkg.id,
-            name: pkg.name,
-            price: Number(pkg.price) || 0,
-            g2bulk_product_id: pkg.g2bulk_product_id,
-            price_markup_percent: pkg.price_markup_percent != null ? Number(pkg.price_markup_percent) : null,
-            cost_price: costMap.get(pkg.g2bulk_product_id) ?? null,
-            game_id: game.id,
-            game_name: game.name,
-            table: 'packages',
-          });
-        }
-        for (const pkg of spData) {
-          allPkgs.push({
-            id: pkg.id,
-            name: pkg.name,
-            price: Number(pkg.price) || 0,
-            g2bulk_product_id: pkg.g2bulk_product_id,
-            price_markup_percent: pkg.price_markup_percent != null ? Number(pkg.price_markup_percent) : null,
-            cost_price: costMap.get(pkg.g2bulk_product_id) ?? null,
-            game_id: game.id,
-            game_name: game.name,
-            table: 'special_packages',
-          });
-        }
-      }
+      const allPkgs: PackageMarkup[] = packages.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        price: Number(p.price) || 0,
+        g2bulk_product_id: p.g2bulk_product_id,
+        price_markup_percent: p.price_markup_percent != null ? Number(p.price_markup_percent) : null,
+        cost_price: costMap.get(p.g2bulk_product_id) ?? null,
+        game_id: p.game_id,
+        game_name: p.game_name,
+        table: p.tbl,
+      }));
 
       const grouped: GameGroup[] = [];
       const seen = new Set<string>();
@@ -108,7 +88,7 @@ const PriceUpdateTab: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [allGames]);
+  }, []);
 
   useEffect(() => { fetchPackages(); }, [fetchPackages]);
 
@@ -230,6 +210,10 @@ const PriceUpdateTab: React.FC = () => {
               className="bg-gold hover:bg-gold/90 text-primary-foreground"
             >
               {updating ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Updating...</> : <><RefreshCw className="w-4 h-4 mr-2" />Update Prices</>}
+            </Button>
+            <Button variant="outline" size="sm" onClick={fetchPackages} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
             <div className="flex items-center gap-2 px-3 py-2 bg-secondary/50 rounded-lg text-sm text-muted-foreground">
               <Clock className="w-4 h-4" />

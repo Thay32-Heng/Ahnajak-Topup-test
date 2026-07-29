@@ -93,6 +93,24 @@ router.delete('/game-verification', requireAuth, requireAdmin, async (req, res) 
   catch (err) { sendError(res, err, 'DELETE /game-verification'); }
 });
 
+// ── All packages linked to G2Bulk (for Price Update tab) ──────────────────
+router.get('/packages/linked-to-g2bulk', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await query(
+      `SELECT p.id, p.game_id, g.name as game_name, p.name, p.price, p.g2bulk_product_id, p.price_markup_percent, 'packages' as tbl
+       FROM packages p JOIN games g ON g.id = p.game_id WHERE p.g2bulk_product_id IS NOT NULL
+       UNION ALL
+       SELECT p.id, p.game_id, g.name as game_name, p.name, p.price, p.g2bulk_product_id, p.price_markup_percent, 'special_packages' as tbl
+       FROM special_packages p JOIN games g ON g.id = p.game_id WHERE p.g2bulk_product_id IS NOT NULL
+       UNION ALL
+       SELECT p.id, p.game_id, g.name as game_name, p.name, p.price, p.g2bulk_product_id, p.price_markup_percent, 'preorder_packages' as tbl
+       FROM preorder_packages p JOIN games g ON g.id = p.game_id WHERE p.g2bulk_product_id IS NOT NULL
+       ORDER BY game_name, name`
+    );
+    res.json(rows);
+  } catch (err) { sendError(res, err, 'GET /packages/linked-to-g2bulk'); }
+});
+
 // ── G2Bulk products ─────────────────────────────────────────────────────────
 router.get('/g2bulk-products', requireAuth, requireAdmin, async (req, res) => {
   try {
