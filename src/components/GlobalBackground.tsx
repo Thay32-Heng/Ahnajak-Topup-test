@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSite } from '@/contexts/SiteContext';
 
 function hexToHSL(hex: string): string {
@@ -47,6 +47,14 @@ const GlobalBackground: React.FC = () => {
     }
     return bgTheme === 'light';
   })();
+
+  useEffect(() => {
+    if (isLightBg) {
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+    }
+  }, [isLightBg]);
 
   return (
     <>
