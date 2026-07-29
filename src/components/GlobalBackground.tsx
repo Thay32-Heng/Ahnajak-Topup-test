@@ -23,6 +23,7 @@ function hexToHSL(hex: string): string {
 const GlobalBackground: React.FC = () => {
   const { settings } = useSite();
   const bgType = settings.bgType || 'color';
+  const bgTheme = settings.bgTheme || 'dark';
   const bgColor = settings.backgroundColor || '#000000';
   const primaryColor = settings.primaryColor || '#D4A84B';
   const accentColor = settings.accentColor || '#B38F3D';
@@ -34,14 +35,17 @@ const GlobalBackground: React.FC = () => {
   const goldDark = hexToHSL(darken(primaryColor, 20));
   const goldGlow = hexToHSL(lighten(primaryColor, 10));
 
-  const isLight = (bgType === 'color' || bgType === 'gradient') && (() => {
-    if (!bgColor.startsWith('#') || bgColor.length !== 7) return false;
-    const hex = bgColor.replace('#', '');
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-    return yiq >= 128;
+  const isLightBg = (() => {
+    if (bgType === 'color' || bgType === 'gradient') {
+      if (!bgColor.startsWith('#') || bgColor.length !== 7) return false;
+      const hex = bgColor.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+      return yiq >= 128;
+    }
+    return bgTheme === 'light';
   })();
 
   return (
@@ -96,10 +100,17 @@ const GlobalBackground: React.FC = () => {
           />
         )}
 
-        {/* 5. Premium Dark Overlay */}
-        {!isLight && (
+        {/* 5. Overlay */}
+        {bgType === 'image' || bgType === 'video' ? (
+          <div
+            className="absolute inset-0 w-full h-full z-10 transition-all duration-500"
+            style={{
+              backgroundColor: isLightBg ? 'rgba(255,255,255,0.6)' : 'rgba(9,9,11,0.85)',
+            }}
+          />
+        ) : !isLightBg ? (
           <div className="absolute inset-0 w-full h-full bg-zinc-950/85 z-10 transition-all duration-500" />
-        )}
+        ) : null}
       </div>
     </>
   );

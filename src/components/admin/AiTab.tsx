@@ -12,6 +12,7 @@ const AiTab: React.FC = () => {
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor || '#D4A84B');
   const [accentColor, setAccentColor] = useState(settings.accentColor || '#B38F3D');
   const [bgType, setBgType] = useState<'color' | 'gradient' | 'image' | 'video'>(settings.bgType || 'color');
+  const [bgTheme, setBgTheme] = useState<'light' | 'dark'>(settings.bgTheme || 'dark');
   const [backgroundColor, setBackgroundColor] = useState(settings.backgroundColor || '#000000');
   const [bgImageUrl, setBgImageUrl] = useState(settings.bgImageUrl || '');
   const [bgVideoUrl, setBgVideoUrl] = useState(settings.bgVideoUrl || '');
@@ -44,6 +45,7 @@ const AiTab: React.FC = () => {
         primaryColor: primaryColor,
         accentColor: accentColor,
         bgType: bgType,
+        bgTheme: bgType === 'color' || bgType === 'gradient' ? undefined : bgTheme,
         backgroundColor: backgroundColor,
         bgImageUrl: bgImageUrl,
         bgVideoUrl: bgVideoUrl,
@@ -256,8 +258,33 @@ const AiTab: React.FC = () => {
                     placeholder="Enter image URL (e.g. https://example.com/bg.jpg)"
                     className="bg-background border-input focus:border-gold"
                   />
+                  {/* Theme toggle for image mode */}
+                  <div className="pt-2">
+                    <label className="text-sm font-semibold text-muted-foreground block mb-2">Theme Overlay</label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={bgTheme === 'dark' ? 'default' : 'outline'}
+                        onClick={() => setBgTheme('dark')}
+                        className={`flex-1 ${bgTheme === 'dark' ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'border-border text-foreground'}`}
+                      >
+                        Dark
+                      </Button>
+                      <Button
+                        variant={bgTheme === 'light' ? 'default' : 'outline'}
+                        onClick={() => setBgTheme('light')}
+                        className={`flex-1 ${bgTheme === 'light' ? 'bg-white text-black hover:bg-gray-100 border border-border' : 'border-border text-foreground'}`}
+                      >
+                        Light
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {bgTheme === 'dark'
+                        ? 'Dark overlay makes the image dim and text readable over it. Best for bright images.'
+                        : 'Light overlay brightens the image. Best for dark images with light text.'}
+                    </p>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Provide a public image web address. The image will be centered, stretched, and layered at 40% opacity.
+                    Provide a public image web address. The image will be centered, stretched, with overlay applied.
                   </p>
                 </div>
               )}

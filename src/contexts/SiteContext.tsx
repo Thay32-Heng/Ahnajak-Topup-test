@@ -73,6 +73,7 @@ export interface SiteSettings {
   accentColor: string;
   backgroundColor: string;
   bgType?: 'color' | 'gradient' | 'image' | 'video';
+  bgTheme?: 'light' | 'dark';
   bgImageUrl?: string;
   bgVideoUrl?: string;
   // Browser settings
@@ -190,6 +191,7 @@ const defaultSettings: SiteSettings = {
   accentColor: '#B38F3D',
   backgroundColor: '#FFFFFF',
   bgType: 'color',
+  bgTheme: 'dark',
   bgImageUrl: '',
   bgVideoUrl: '',
   // Browser settings
@@ -365,6 +367,7 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (row.key === 'accentColor') loadedSettings.accentColor = row.value as string;
           if (row.key === 'backgroundColor') loadedSettings.backgroundColor = row.value as string;
           if (row.key === 'bgType') loadedSettings.bgType = row.value as any;
+          if (row.key === 'bgTheme') loadedSettings.bgTheme = row.value as any;
           if (row.key === 'bgImageUrl') loadedSettings.bgImageUrl = row.value as string;
           if (row.key === 'bgVideoUrl') loadedSettings.bgVideoUrl = row.value as string;
           if (row.key === 'backgroundImage') loadedSettings.backgroundImage = row.value as string;
