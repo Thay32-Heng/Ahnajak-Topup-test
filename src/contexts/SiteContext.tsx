@@ -191,7 +191,6 @@ const defaultSettings: SiteSettings = {
   accentColor: '#B38F3D',
   backgroundColor: '#FFFFFF',
   bgType: 'color',
-  bgTheme: 'dark',
   bgImageUrl: '',
   bgVideoUrl: '',
   // Browser settings
@@ -282,6 +281,7 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Update CSS variable --primary-color dynamically on document root and toggle dark/light theme
   useEffect(() => {
+    if (isLoading) return;
     const color = settings.primaryColor || (settings.siteName === 'KESOR TOPUP' ? '#D4A84B' : '#E53E3E');
     document.documentElement.style.setProperty('--primary-color', color);
 
@@ -298,10 +298,13 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     if ((settings.bgType === 'color' || settings.bgType === 'gradient') && isLight) {
       document.documentElement.classList.remove('dark');
+    } else if (settings.bgType === 'image' || settings.bgType === 'video') {
+      if (settings.bgTheme === 'light') document.documentElement.classList.remove('dark');
+      else if (settings.bgTheme === 'dark') document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.add('dark');
     }
-  }, [settings.primaryColor, settings.siteName, settings.backgroundColor, settings.bgType]);
+  }, [isLoading, settings.primaryColor, settings.siteName, settings.backgroundColor, settings.bgType, settings.bgTheme]);
 
   // Load data from database on mount
   useEffect(() => {
