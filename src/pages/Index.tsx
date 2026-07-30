@@ -47,7 +47,8 @@ const Index: React.FC = () => {
       ? Math.min(currentIdx + 1, cards.length - 1)
       : Math.max(currentIdx - 1, 0);
 
-    cards[next].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+    const el = featuredRef.current;
+    el.scrollTo({ left: cards[next].offsetLeft - el.offsetLeft, behavior: 'smooth' });
     setFeaturedIdx(next);
   }, []);
 
