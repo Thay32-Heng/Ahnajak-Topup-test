@@ -135,25 +135,6 @@ const PreorderTopupPage: React.FC = () => {
     return dates[0] || null;
   }, [preorderPackages]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold"></div>
-      </div>
-    );
-  }
-
-  if (!game) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Game not found</h1>
-          <Link to="/preorder" className="text-gold hover:underline">Go back to Pre-order</Link>
-        </div>
-      </div>
-    );
-  }
-
   // Reuse same game ID config logic from TopupPage
   const getGameIdConfig = (gameName: string) => {
     const n = gameName.toLowerCase().trim();
@@ -325,8 +306,8 @@ const PreorderTopupPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>{game.name} Pre-order - {settings.siteName}</title>
-        <meta name="description" content={`Pre-order ${game.name} top-up. Reserve now and get delivered on schedule.`} />
+        <title>{game ? `${game.name} Pre-order - ${settings.siteName}` : settings.siteName}</title>
+        <meta name="description" content={game ? `Pre-order ${game.name} top-up. Reserve now and get delivered on schedule.` : settings.siteName} />
       </Helmet>
 
       <div
@@ -348,7 +329,19 @@ const PreorderTopupPage: React.FC = () => {
         <Header />
         <HeaderSpacer />
 
-        <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-2xl">
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold"></div>
+          </div>
+        ) : !game ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold mb-4">Game not found</h1>
+              <Link to="/preorder" className="text-gold hover:underline">Go back to Pre-order</Link>
+            </div>
+          </div>
+        ) : (
+          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-2xl">
           <Link to="/preorder" className="inline-flex items-center gap-2 text-sm sm:text-base text-muted-foreground hover:text-foreground mb-4 sm:mb-6 transition-colors">
             <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>ត្រលប់ទៅ Pre-order</span>
@@ -584,6 +577,7 @@ const PreorderTopupPage: React.FC = () => {
             </Button>
           </div>
         </div>
+      )}
       </div>
     </>
   );

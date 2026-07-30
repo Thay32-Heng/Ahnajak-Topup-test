@@ -83,29 +83,6 @@ const TopupPage: React.FC = () => {
   }, [hasCachedData, cachedUserId, cachedServerId]);
 
   // Show loading state while data is being fetched
-  if (isLoading) {
-
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: primaryColor }}></div>
-      </div>
-    );
-  }
-
-  if (!game) {
-
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Game not found</h1>
-          <Link to="/" className="hover:underline font-semibold" style={{ color: primaryColor }}>
-            Go back home
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   // Game-specific ID field configurations based on real game requirements
   const getGameIdConfig = (gameName: string) => {
     const normalizedName = gameName.toLowerCase().trim();
@@ -1105,11 +1082,11 @@ const TopupPage: React.FC = () => {
     <>
       <Helmet>
         <title>
-          {game.name} Topup - {settings.siteName}
+          {game ? `${game.name} Topup - ${settings.siteName}` : settings.siteName}
         </title>
         <meta
           name="description"
-          content={`Top up ${game.name} instantly. Choose from various packages and payment methods.`}
+          content={game ? `Top up ${game.name} instantly. Choose from various packages and payment methods.` : settings.siteName}
         />
       </Helmet>
 
@@ -1133,7 +1110,21 @@ const TopupPage: React.FC = () => {
         <Header />
         <HeaderSpacer />
 
-        <div className="container mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 max-w-[1600px]">
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: primaryColor }} />
+          </div>
+        ) : !game ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold mb-4">Game not found</h1>
+              <Link to="/" className="hover:underline font-semibold" style={{ color: primaryColor }}>
+                Go back home
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="container mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 max-w-[1600px]">
           {/* Back button */}
           <Link
             to="/"
@@ -1680,8 +1671,9 @@ const TopupPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
+      {isLoading || !game ? null : (
       <StickyBottomBar
         totalAmount={(() => {
           const pkg =
@@ -1694,6 +1686,7 @@ const TopupPage: React.FC = () => {
         onCheckout={handleSubmit}
         isSubmitting={isSubmitting}
       />
+      )}
     </>
   );
 };
