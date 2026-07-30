@@ -1687,6 +1687,7 @@ const TopupPage: React.FC = () => {
         isSubmitting={isSubmitting}
       />
       )}
+      </div>
     </>
   );
 };
