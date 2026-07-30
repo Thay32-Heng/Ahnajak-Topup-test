@@ -52,8 +52,8 @@ router.get('/:id', optionalAuth, async (req, res) => {
   } catch (err) { sendError(res, err, 'GET /orders/:id'); }
 });
 
-// Create order (anyone — guest checkout allowed, status forced to 'pending')
-router.post('/', optionalAuth, async (req, res) => {
+// Create order (auth required)
+router.post('/', requireAuth, async (req, res) => {
   const b = req.body;
   if (!b.player_id || String(b.player_id).length > 100) {
     return res.status(400).json({ error: 'Invalid or too long player_id' });

@@ -403,7 +403,7 @@ async function checkG2BulkOrderStatus(orderId) {
 }
 
 // ── Routes ─────────────────────────────────────────────────────────────────
-router.post('/', optionalAuth, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const body = req.body;
 
   try {

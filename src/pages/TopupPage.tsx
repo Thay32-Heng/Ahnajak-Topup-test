@@ -9,6 +9,7 @@ import KhmerFrame from "@/components/KhmerFrame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import StickyBottomBar from "@/components/StickyBottomBar";
 import { useSite } from "@/contexts/SiteContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
@@ -1000,6 +1001,10 @@ const TopupPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (!authUser) {
+      navigate("/login?redirect=" + encodeURIComponent(window.location.pathname + window.location.search));
+      return;
+    }
     if (!userId) {
       toast({ title: "Please enter your Game ID", variant: "destructive" });
       return;
@@ -1113,7 +1118,7 @@ const TopupPage: React.FC = () => {
       </Helmet>
 
       <div
-        className="min-h-screen pb-8 theme-accented-page relative"
+        className="min-h-screen pb-24 md:pb-8 theme-accented-page relative"
         style={{
           backgroundColor: settings.topupBackgroundColor || undefined,
           '--primary-color': primaryColor
@@ -1681,6 +1686,18 @@ const TopupPage: React.FC = () => {
           </div>
         </div>
       </div>
+      <StickyBottomBar
+        totalAmount={(() => {
+          const pkg =
+            game.packages.find((p) => p.id === selectedPackage) ||
+            game.specialPackages.find((p) => p.id === selectedPackage);
+          return pkg ? pkg.price : 0;
+        })()}
+        isUserIdValid={!!verifiedUser && !!userId.trim()}
+        selectedPackageId={selectedPackage}
+        onCheckout={handleSubmit}
+        isSubmitting={isSubmitting}
+      />
     </>
   );
 };
