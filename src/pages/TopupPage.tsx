@@ -1001,10 +1001,6 @@ const TopupPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!authUser) {
-      navigate("/login?redirect=" + encodeURIComponent(window.location.pathname + window.location.search));
-      return;
-    }
     if (!userId) {
       toast({ title: "Please enter your Game ID", variant: "destructive" });
       return;
