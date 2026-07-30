@@ -1671,9 +1671,9 @@ const TopupPage: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
-      </div>
-      {isLoading || !game ? null : (
+        </div>
+      )}
+      {!isLoading && game && (
       <StickyBottomBar
         totalAmount={(() => {
           const pkg =
