@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, ArrowLeft, Loader2, CheckCircle, Package, AlertCircle } from "lucide-react";
+import { CreditCard, ArrowLeft, Loader2, CheckCircle, Package, AlertCircle, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
 import { useSite } from "@/contexts/SiteContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useFavicon } from "@/hooks/useFavicon";
 import KHQRPaymentCard from "@/components/KHQRPaymentCard";
 
@@ -27,6 +28,7 @@ const CheckoutPage = () => {
   const { toast } = useToast();
   const { items, getTotal, clearCart, itemCount } = useCart();
   const { settings, ikhodePayment } = useSite();
+  const { user: authUser } = useAuth();
 
   // Check if this is a preorder checkout
   const isPreorder = new URLSearchParams(window.location.search).get('preorder') === 'true';
@@ -42,6 +44,14 @@ const CheckoutPage = () => {
   const [qrNonce, setQrNonce] = useState(0);
 
   const getFinalTotal = () => getTotal();
+
+  // Voucher/Gift Card orders require login — redirect guests to the auth page
+  useEffect(() => {
+    const hasCardItem = items.some(i => !!i.g2bulkProductId && i.g2bulkProductId.startsWith('card_'));
+    if (hasCardItem && !authUser) {
+      navigate(`/auth?redirect=${encodeURIComponent('/checkout')}`);
+    }
+  }, [items, authUser, navigate]);
 
   useEffect(() => {
     if (items.length === 0 && !orderComplete && !generatedQR) {
@@ -83,6 +93,7 @@ const CheckoutPage = () => {
             currency: settings.packageCurrency || "USD",
             payment_method: "KHQR",
             g2bulk_product_id: firstItem.g2bulkProductId || null,
+            quantity: firstItem.g2bulkProductId?.startsWith('card_') ? (firstItem.quantity || 1) : undefined,
             is_preorder: isPreorder,
             scheduled_fulfill_at: firstItem.scheduledFulfillAt || null,
           },
@@ -278,9 +289,14 @@ const CheckoutPage = () => {
                           <>🎁 {item.gameName === 'Gift Card' ? 'Gift Card' : 'Voucher'} — instant delivery</>
                         )}
                       </p>
+                      {item.quantity && item.quantity > 1 && (
+                        <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--gold, #d4a84b)' }}>
+                          × {item.quantity} = ${(item.price * item.quantity).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     <Badge variant="secondary" className="flex-shrink-0">
-                      ${item.price.toFixed(2)}
+                      ${(item.price * (item.quantity && item.quantity > 1 ? item.quantity : 1)).toFixed(2)}
                     </Badge>
                   </div>
                 ))}

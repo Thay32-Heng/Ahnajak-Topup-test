@@ -61,6 +61,38 @@ async function upsertCategoryGame(categoryId, title, imageUrl) {
   return true;
 }
 
+function mapProductRow(r) {
+  const fields = parseFields(r.fields);
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description || null,
+    price: parseFloat(r.price) || 0,
+    currency: r.currency || 'USD',
+    product_type: fields.category === 'voucher' ? 'voucher' : 'gift_card',
+    image: fields.image_url || null,
+    category_id: fields.category_id || null,
+    category_title: fields.category_title || null,
+    g2bulk_product_id: r.g2bulk_product_id,
+    g2bulk_type_id: r.g2bulk_type_id,
+    fields,
+  };
+}
+
+async function getVgMarkupPercent() {
+  try {
+    const [rows] = await query("SELECT value FROM site_settings WHERE `key` = 'vg_markup_percent'");
+    if (!rows.length) return 0;
+    const parsed = JSON.parse(rows[0].value);
+    const n = parseFloat(parsed);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch { return 0; }
+}
+
+function applyMarkup(unitPrice, markupPercent) {
+  return Math.round(unitPrice * (1 + markupPercent / 100) * 100) / 100;
+}
+
 // Public: list active voucher & gift card products
 router.get('/', async (req, res) => {
   try {
@@ -71,21 +103,7 @@ router.get('/', async (req, res) => {
        WHERE product_type IN ('card') AND is_active = 1 AND price > 0
        ORDER BY product_type, price ASC`
     );
-    const products = rows.map(r => {
-      const fields = parseFields(r.fields);
-      return {
-        id: r.id,
-        name: r.name,
-        description: r.description || null,
-        price: parseFloat(r.price) || 0,
-        currency: r.currency || 'USD',
-        product_type: fields.category === 'voucher' ? 'voucher' : 'gift_card',
-        image: fields.image_url || null,
-        g2bulk_product_id: r.g2bulk_product_id,
-        g2bulk_type_id: r.g2bulk_type_id,
-        fields,
-      };
-    });
+    const products = rows.map(r => mapProductRow(r));
     return res.json(products);
   } catch (err) {
     console.error('[vg-products] Error fetching products:', err);
@@ -136,6 +154,86 @@ router.get('/categories', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: imported VG category games (editable in Games tab) + current markup %
+router.get('/games', requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await query(
+      `SELECT id, name, slug, image, description, g2bulk_category_id, tags
+       FROM games WHERE g2bulk_category_id IS NOT NULL AND tags LIKE '%vg%'
+       ORDER BY sort_order ASC, name ASC`
+    );
+    const markup = await getVgMarkupPercent();
+    return res.json({
+      games: rows.map(r => ({ ...r, tags: parseTags(r.tags) })),
+      markup,
+    });
+  } catch (err) {
+    console.error('[vg-products] Games list error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: set VG markup % and reprice every imported VG product
+router.post('/markup', requireAdmin, async (req, res) => {
+  const markup = parseFloat(req.body?.markup);
+  if (!Number.isFinite(markup) || markup < 0 || markup > 500) {
+    return res.status(400).json({ error: 'markup must be a number between 0 and 500' });
+  }
+  try {
+    await query(
+      "INSERT INTO site_settings (id, `key`, value) VALUES (UUID(), 'vg_markup_percent', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)",
+      [JSON.stringify(markup)]
+    );
+    const [rows] = await query("SELECT id, fields FROM g2bulk_products WHERE product_type = 'card'");
+    let updated = 0;
+    for (const r of rows) {
+      const fields = parseFields(r.fields);
+      const unitPrice = parseFloat(fields.unit_price);
+      if (!Number.isFinite(unitPrice) || unitPrice <= 0) continue;
+      const price = applyMarkup(unitPrice, markup);
+      await query('UPDATE g2bulk_products SET price = ? WHERE id = ?', [price, r.id]);
+      updated++;
+    }
+    return res.json({ success: true, markup, updated });
+  } catch (err) {
+    console.error('[vg-products] Set markup error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Public: single VG category game by slug (game header + its products)
+router.get('/:slug', async (req, res) => {
+  try {
+    const game = await queryOne('SELECT * FROM games WHERE slug = ?', [req.params.slug]);
+    if (!game?.g2bulk_category_id) return res.status(404).json({ error: 'Category not found' });
+    const [rows] = await query(
+      `SELECT id, g2bulk_product_id, g2bulk_type_id, product_name AS name, denomination AS description,
+              price, currency, fields, product_type, is_active
+       FROM g2bulk_products
+       WHERE product_type = 'card' AND is_active = 1 AND price > 0
+         AND (JSON_UNQUOTE(JSON_EXTRACT(fields, '$.category_id')) = ?
+              OR JSON_UNQUOTE(JSON_EXTRACT(fields, '$.category_title')) = ?)
+       ORDER BY price ASC`,
+      [String(game.g2bulk_category_id), game.name]
+    );
+    return res.json({
+      game: {
+        id: game.id,
+        name: game.name,
+        slug: game.slug,
+        image: game.image,
+        description: game.description,
+        cover_image: game.cover_image,
+        tags: parseTags(game.tags),
+      },
+      products: rows.map(r => mapProductRow(r)),
+    });
+  } catch (err) {
+    console.error('[vg-products] Single category error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin: import voucher/gift card products from G2Bulk
 // body: { product_type: 'voucher'|'gift_card', categoryId?: number|string, productIds?: string[] }
 //   categoryId — import every product inside that G2Bulk category
@@ -165,17 +263,26 @@ router.post('/import', requireAdmin, async (req, res) => {
     let imported = 0;
     let gamesCreated = 0;
     const seenCategories = new Map(); // category_id -> { title, image }
+    const markupPercent = await getVgMarkupPercent();
     for (const prod of prodData.products) {
       if (onlyIds && !onlyIds.has(String(prod.id))) continue;
       // G2Bulk products return: { id, title, description, category_id, category_title, unit_price, image_url, stock }
       const pName = prod.title || prod.name || `Card ${prod.id}`;
-      const amount = parseFloat(prod.unit_price ?? prod.amount) || 0;
-      const fields = { category: product_type, category_title: prod.category_title || null, stock: prod.stock ?? null, image_url: prod.image_url || null };
+      const unitPrice = parseFloat(prod.unit_price ?? prod.amount) || 0;
+      const finalPrice = applyMarkup(unitPrice, markupPercent);
+      const fields = {
+        category: product_type,
+        category_id: prod.category_id != null ? String(prod.category_id) : null,
+        category_title: prod.category_title || null,
+        unit_price: unitPrice,
+        stock: prod.stock ?? null,
+        image_url: prod.image_url || null,
+      };
       await query(
         `INSERT INTO g2bulk_products (id, g2bulk_type_id, g2bulk_product_id, game_name, product_name, denomination, price, currency, fields, is_active, product_type)
          VALUES (UUID(), '', ?, ?, ?, ?, ?, 'USD', ?, 1, 'card')
          ON DUPLICATE KEY UPDATE game_name = VALUES(game_name), product_name = VALUES(product_name), denomination = VALUES(denomination), price = VALUES(price), fields = VALUES(fields), is_active = 1, product_type = 'card'`,
-        [`card_${prod.id}`, pName, pName, amount, amount, JSON.stringify(fields)]
+        [`card_${prod.id}`, pName, pName, unitPrice, finalPrice, JSON.stringify(fields)]
       );
       imported++;
       if (prod.category_id != null && prod.category_title) {

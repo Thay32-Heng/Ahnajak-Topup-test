@@ -12,6 +12,7 @@ interface KHQRccConfig {
   profile_id: string;
   secret_key: string;
   checkout_url: string;
+  success_url: string;
 }
 
 interface GatewayData {
@@ -25,7 +26,8 @@ interface GatewayData {
 const defaultConfig: KHQRccConfig = {
   profile_id: '',
   secret_key: '',
-  checkout_url: 'https://khqr.cc/api/payment/requestv2'
+  checkout_url: 'https://khqr.cc/api/payment/requestv2',
+  success_url: ''
 };
 
 const KHQRccSettingsTab: React.FC = () => {
@@ -182,6 +184,23 @@ const KHQRccSettingsTab: React.FC = () => {
             placeholder="https://khqr.cc/api/payment/requestv2"
             className="border-gold/50"
           />
+        </div>
+
+        {/* Success URL */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Globe className="w-4 h-4" />
+            Success URL (after payment)
+          </Label>
+          <Input
+            value={config.success_url}
+            onChange={(e) => setConfig({ ...config, success_url: e.target.value })}
+            placeholder={`${window.location.origin}/api/khqrcc-webhook?transaction_id=ORDER_ID`}
+            className="border-gold/50"
+          />
+          <p className="text-xs text-muted-foreground">
+            Where the customer is redirected after paying. Leave empty to use this website&apos;s webhook URL automatically.
+          </p>
         </div>
 
         {/* Save Button */}

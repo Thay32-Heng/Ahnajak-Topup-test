@@ -55,7 +55,7 @@ const Index: React.FC = () => {
   useFavicon(settings.siteIcon);
 
   const featuredGames = useMemo(() => {
-    let result = games.filter(game => !game.tags?.includes('vg') && game.tags?.includes('featured'));
+    let result = games.filter(game => game.tags?.includes('featured'));
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(game =>
@@ -75,7 +75,7 @@ const Index: React.FC = () => {
   }, [featuredGames.length, scrollToIndex]);
 
   const filteredGames = useMemo(() => {
-    let result = games.filter(game => !game.tags?.includes('vg'));
+    let result = [...games];
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(game =>

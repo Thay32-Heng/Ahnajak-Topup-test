@@ -178,6 +178,17 @@ const { pool } = require('./db.cjs');
         console.log(`  ✓ Auto-migration: added card_codes to ${table}`);
       }
     }
+    // Ensure quantity column exists (Voucher & Gift Card multi-buy)
+    for (const table of ['topup_orders', 'preorder_orders']) {
+      const [cols] = await conn.query(
+        `SELECT COUNT(*) AS n FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = ? AND column_name = 'quantity'`, [table]
+      );
+      if (!cols[0]?.n) {
+        await conn.query(`ALTER TABLE ${table} ADD COLUMN quantity INT NOT NULL DEFAULT 1`);
+        console.log(`  ✓ Auto-migration: added quantity to ${table}`);
+      }
+    }
     conn.release();
     console.log('  ✓ Auto-migration: event_banners + telegram_auth_codes tables ready');
   } catch (err) {

@@ -18,6 +18,8 @@ export interface CartItem {
   // G2Bulk integration
   g2bulkProductId?: string;
   g2bulkTypeId?: string;
+  // Voucher/Gift Card multi-buy
+  quantity?: number;
   // Pre-order
   scheduledFulfillAt?: string;
 }
@@ -52,7 +54,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getTotal = () => {
-    return items.reduce((sum, item) => sum + item.price, 0);
+    return items.reduce((sum, item) => sum + item.price * (item.quantity && item.quantity > 1 ? item.quantity : 1), 0);
   };
 
   const itemCount = items.length;

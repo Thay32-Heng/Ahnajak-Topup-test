@@ -33,7 +33,9 @@ router.post('/khqrcc-payment', async (req, res) => {
     if (!cfg.secret_key || !cfg.profile_id || !cfg.checkout_url) {
       return res.status(400).json({ error: 'Gateway not configured' });
     }
-    const success_url = returnUrl || `${process.env.PUBLIC_BASE_URL || 'http://localhost:9911'}/api/khqrcc-webhook?transaction_id=${orderId}`;
+    const success_url = returnUrl
+      || cfg.success_url
+      || `${req.protocol}://${req.get('host')}/api/khqrcc-webhook?transaction_id=${orderId}`;
     const plainHash = cfg.secret_key + orderId + amount + success_url + (remark || '');
     const hash = crypto.createHash('sha1').update(plainHash).digest('hex');
     const params = new URLSearchParams({ transaction_id: String(orderId), amount: String(amount), success_url, remark: remark || '', hash });

@@ -326,11 +326,18 @@ async function fulfillG2BulkOrder(orderId, tableName = 'topup_orders') {
   const apiKey = apiConfig.api_secret;
 
   try {
-    // Resolve quantity from package tables (deterministic, price-matched)
+    const productType = await getProductType(g2bulkProductId);
+
+    // Resolve quantity deterministically
     let fulfillQuantity = 1;
     const targetAmount = Number(order.amount ?? 0);
 
-    for (const table of ['packages', 'special_packages', 'preorder_packages']) {
+    if (productType === 'card') {
+      // Card/VG orders: quantity is stored on the order itself
+      const qty = Math.floor(Number(order.quantity));
+      if (Number.isInteger(qty) && qty >= 1 && qty <= 50) fulfillQuantity = qty;
+    } else {
+      for (const table of ['packages', 'special_packages', 'preorder_packages']) {
       const [rows] = await query(
         `SELECT quantity, price, amount FROM ${table}
          WHERE g2bulk_product_id = ? AND name = ?
@@ -356,12 +363,12 @@ async function fulfillG2BulkOrder(orderId, tableName = 'topup_orders') {
       const distinct = new Set(normalized.map(r => r.quantity));
       if (distinct.size === 1) { fulfillQuantity = normalized[0].quantity; break; }
       break; // ambiguous → fail-safe qty=1
+      }
     }
 
     await query(`UPDATE ${tableName} SET status_message = ? WHERE id = ?`,
       [`Sending to G2Bulk for fulfillment (×${fulfillQuantity})...`, orderId]);
 
-    const productType = await getProductType(g2bulkProductId);
     const orderForFulfillment = { ...order, g2bulk_product_id: g2bulkProductId };
 
     if (productType === 'card') {
@@ -467,6 +474,15 @@ router.post('/', optionalAuth, async (req, res) => {
     // Voucher/Gift Card orders have no player_id — detect card products
     const isCardProduct = !!g2bulk_product_id && String(g2bulk_product_id).startsWith('card_');
 
+    // Voucher/Gift Card orders require login (server-enforced, not just UI)
+    if (isCardProduct && !req.user) {
+      return res.status(401).json({ success: false, error: 'Login required to order vouchers or gift cards' });
+    }
+    const quantity = isCardProduct ? Math.floor(Number(body.quantity) || 1) : 1;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+      return res.status(400).json({ success: false, error: 'Quantity must be between 1 and 50' });
+    }
+
     if (!game_name || !package_name) {
       return res.status(400).json({ success: false, error: 'game_name, package_name, and player_id are required' });
     }
@@ -504,7 +520,7 @@ router.post('/', optionalAuth, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid package selection' });
     }
 
-    const authoritativeAmount = Number(authoritativePackage.price);
+    const authoritativeAmount = Math.round(Number(authoritativePackage.price) * quantity * 100) / 100;
     const payloadAmount = Number(amount);
     if (Number.isFinite(payloadAmount) && Math.abs(payloadAmount - authoritativeAmount) > 0.0001) {
       return res.status(400).json({ success: false, error: 'Amount does not match selected package price' });
@@ -516,15 +532,15 @@ router.post('/', optionalAuth, async (req, res) => {
 
     if (is_preorder && scheduled_fulfill_at) {
       await query(
-        `INSERT INTO ${tableName} (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status, scheduled_fulfill_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, req.user?.id || null, game_name, package_name, player_id || '', server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus, scheduled_fulfill_at]
+        `INSERT INTO ${tableName} (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status, scheduled_fulfill_at, quantity)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, req.user?.id || null, game_name, package_name, player_id || '', server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus, scheduled_fulfill_at, quantity]
       );
     } else {
       await query(
-        `INSERT INTO ${tableName} (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, req.user?.id || null, game_name, package_name, player_id || '', server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus]
+        `INSERT INTO ${tableName} (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status, quantity)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, req.user?.id || null, game_name, package_name, player_id || '', server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus, quantity]
       );
     }
 

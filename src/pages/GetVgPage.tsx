@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { ArrowLeft, Loader2, ShoppingCart, Tag } from "lucide-react";
+import { ArrowLeft, Loader2, ShoppingCart, Tag, Minus, Plus, LogIn } from "lucide-react";
 import Header from "@/components/Header";
 import HeaderSpacer from "@/components/HeaderSpacer";
 import KhmerFrame from "@/components/KhmerFrame";
@@ -33,19 +33,36 @@ interface VgProduct {
   fields?: Record<string, string>;
 }
 
+interface VgGame {
+  id: string;
+  name: string;
+  slug: string;
+  image?: string;
+  description?: string;
+  cover_image?: string;
+  tags?: string[];
+}
+
+const MAX_QTY = 20;
+
 const GetVgPage: React.FC = () => {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
   const { user: authUser } = useAuth();
   const { paymentMethods, settings, isLoading } = useSite();
   const { addToCart } = useCart();
   const isKesor = settings.siteName?.toLowerCase().includes('kesor');
   const primaryColor = settings.primaryColor || (isKesor ? '#D4A84B' : '#E53E3E');
+  const isCategoryMode = !!slug;
 
   useFavicon(settings.siteIcon);
 
   const [products, setProducts] = useState<VgProduct[]>([]);
+  const [categoryGame, setCategoryGame] = useState<VgGame | null>(null);
   const [productsLoading, setProductsLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(1);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,13 +74,26 @@ const GetVgPage: React.FC = () => {
     }
   }, [paymentMethods]);
 
+  // Reset quantity when switching products
+  useEffect(() => {
+    setQuantity(1);
+  }, [selectedProduct]);
+
   useEffect(() => {
     const fetchProducts = async () => {
       setProductsLoading(true);
       try {
-        const { data } = await api.get('/products/vg');
-        const all = (Array.isArray(data) ? data : []) as VgProduct[];
-        setProducts(all);
+        if (isCategoryMode && slug) {
+          const { data, error } = await api.get(`/products/vg/${slug}`);
+          if (error) throw new Error(error.message || String(error));
+          const d = data as any;
+          setCategoryGame(d?.game || null);
+          setProducts(Array.isArray(d?.products) ? d.products as VgProduct[] : []);
+        } else {
+          const { data, error } = await api.get('/products/vg');
+          if (error) throw new Error(error.message || String(error));
+          setProducts((Array.isArray(data) ? data : []) as VgProduct[]);
+        }
       } catch (err) {
         console.error('Failed to load VG products:', err);
         setProducts([]);
@@ -72,15 +102,27 @@ const GetVgPage: React.FC = () => {
       }
     };
     fetchProducts();
-  }, []);
+  }, [slug, isCategoryMode]);
 
   const filteredProducts = useMemo(() => {
+    if (isCategoryMode) return products.filter(p => p.price > 0);
     return products.filter(p => p.product_type === activeTab && p.price > 0);
-  }, [products, activeTab]);
+  }, [products, activeTab, isCategoryMode]);
 
   const selectedProductData = useMemo(() => {
     return products.find(p => p.id === selectedProduct) || null;
   }, [products, selectedProduct]);
+
+  const unitPrice = selectedProductData?.price || 0;
+  const totalPrice = Math.round(unitPrice * quantity * 100) / 100;
+
+  // Voucher/Gift Card orders require login (also enforced on the server)
+  const requireLogin = useCallback((): boolean => {
+    if (authUser) return true;
+    toast({ title: 'Login required', description: 'Please log in to order vouchers or gift cards', variant: 'destructive' });
+    navigate(`/auth?redirect=${encodeURIComponent(location.pathname + location.search)}`);
+    return false;
+  }, [authUser, navigate, location.pathname, location.search]);
 
   const handleSubmit = async () => {
     if (!selectedProduct) {
@@ -95,41 +137,42 @@ const GetVgPage: React.FC = () => {
       toast({ title: "Please agree to the terms", variant: "destructive" });
       return;
     }
+    if (!requireLogin()) return;
 
     const pkg = selectedProductData;
     if (!pkg) return;
 
     const paymentMethod = paymentMethods.find((p) => p.id === selectedPayment);
     const isKhqrcc = selectedPayment === 'khqrcc';
+    const gameName = categoryGame?.name || (pkg.product_type === 'gift_card' ? 'Gift Card' : 'Voucher');
 
     if (isKhqrcc) {
       try {
         setIsSubmitting(true);
-        const orderId = `VG_ABA_${Date.now()}`;
-        const remark = `Order ${pkg.name} - ${pkg.product_type}`;
-
-        const { data: newOrder, error: orderError } = await db.from("topup_orders").insert({
-          user_id: authUser?.id || null,
-          game_name: pkg.product_type === 'gift_card' ? 'Gift Card' : 'Voucher',
+        const { data: newOrder, error: orderError } = await api.post('/orders', {
+          game_name: gameName,
           package_name: pkg.name,
           player_id: '',
           server_id: null,
           player_name: null,
-          amount: pkg.price,
-          status: "pending",
-          payment_method: "khqrcc",
-          g2bulk_product_id: pkg.g2bulk_product_id || null
-        }).select('id').single();
+          amount: totalPrice,
+          currency: pkg.currency || 'USD',
+          payment_method: 'khqrcc',
+          g2bulk_product_id: pkg.g2bulk_product_id || null,
+          quantity,
+        });
 
-        if (orderError) throw orderError;
-        const dbOrderId = newOrder.id;
+        if (orderError) throw new Error(orderError.message || String(orderError));
+        const orderId = (newOrder as any)?.id;
+        if (!orderId) throw new Error('Failed to create order');
 
+        const remark = `Order ${pkg.name} ×${quantity}`;
         const { data, error } = await db.functions.invoke("khqrcc-payment", {
           body: {
-            orderId: dbOrderId,
-            amount: pkg.price,
+            orderId,
+            amount: totalPrice,
             remark,
-            returnUrl: `${window.location.origin}/invoice/${dbOrderId}`
+            returnUrl: `${window.location.origin}/invoice/${orderId}`,
           },
         });
 
@@ -147,12 +190,13 @@ const GetVgPage: React.FC = () => {
     addToCart({
       id: `${pkg.id}-${Date.now()}`,
       packageId: pkg.id,
-      gameId: 'vg',
-      gameName: pkg.product_type === 'gift_card' ? 'Gift Card' : 'Voucher',
-      gameIcon: pkg.image || '',
+      gameId: categoryGame?.id || 'vg',
+      gameName,
+      gameIcon: categoryGame?.image || pkg.image || '',
       packageName: pkg.name,
       amount: pkg.name,
       price: pkg.price,
+      quantity,
       playerId: '',
       serverId: undefined,
       playerName: null,
@@ -165,11 +209,16 @@ const GetVgPage: React.FC = () => {
     navigate("/checkout");
   };
 
+  const pageTitle = isCategoryMode && categoryGame ? categoryGame.name : 'Voucher & Gift Card';
+  const pageDesc = isCategoryMode && categoryGame
+    ? `Buy ${categoryGame.name} vouchers and gift cards instantly - ${settings.siteName}`
+    : `Buy vouchers and gift cards instantly - ${settings.siteName}`;
+
   return (
     <>
       <Helmet>
-        <title>Voucher & Gift Card - {settings.siteName}</title>
-        <meta name="description" content={`Buy vouchers and gift cards instantly - ${settings.siteName}`} />
+        <title>{pageTitle} - {settings.siteName}</title>
+        <meta name="description" content={pageDesc} />
       </Helmet>
 
       <div
@@ -199,7 +248,7 @@ const GetVgPage: React.FC = () => {
         ) : (
           <div className="container mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 max-w-[1600px]">
             <Link
-              to="/"
+              to={isCategoryMode ? "/" : "/"}
               className="group inline-flex items-center gap-2 text-sm sm:text-base text-muted-foreground hover:text-foreground mb-4 sm:mb-6 transition-colors animate-fade-in-up"
             >
               <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/70 backdrop-blur-xl ring-1 ring-white/60 shadow-sm flex items-center justify-center group-hover:bg-white group-hover:-translate-x-0.5 transition-all">
@@ -212,12 +261,17 @@ const GetVgPage: React.FC = () => {
               <div className="lg:col-span-4 space-y-6">
                 <div className="space-y-4 animate-fade-in-up">
                   <div className="relative h-44 sm:h-56 w-full overflow-hidden rounded-[28px] shadow-lg ring-1 ring-white/40 border border-white/60 bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-600">
+                    {isCategoryMode && categoryGame?.image ? (
+                      <img src={resolveIconUrl(categoryGame.image)} alt={categoryGame.name} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : null}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent" />
                     <div className="absolute bottom-4 left-4 right-4">
                       <h2 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
-                        {activeTab === 'voucher' ? 'Vouchers' : 'Gift Cards'}
+                        {isCategoryMode && categoryGame ? categoryGame.name : (activeTab === 'voucher' ? 'Vouchers' : 'Gift Cards')}
                       </h2>
-                      <p className="text-white/80 text-sm mt-1">Instant delivery</p>
+                      <p className="text-white/80 text-sm mt-1">
+                        {isCategoryMode ? 'Instant code delivery' : 'Instant delivery'}
+                      </p>
                     </div>
                     <div
                       className="pointer-events-none absolute -inset-[1px] rounded-[28px] bg-[length:200%_100%] animate-gradient-shift opacity-60"
@@ -230,58 +284,84 @@ const GetVgPage: React.FC = () => {
                     <div className="relative z-10 flex items-center gap-3 sm:gap-4">
                       <div className="relative shrink-0 animate-float-slow">
                         <div className="absolute -inset-1.5 rounded-2xl blur-md opacity-80 animate-pulse-gold" style={{ background: `linear-gradient(135deg, ${primaryColor}, color-mix(in srgb, ${primaryColor} 60%, white), color-mix(in srgb, ${primaryColor} 80%, black))` }} />
-                        <div className="relative w-16 h-16 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-pink-400 to-purple-600 flex items-center justify-center border-2 shadow-xl" style={{ borderColor: primaryColor }}>
-                          <Tag className="w-8 h-8 sm:w-12 sm:h-12 text-white" />
-                        </div>
+                        {isCategoryMode && categoryGame?.image ? (
+                          <img src={resolveIconUrl(categoryGame.image)} alt={categoryGame.name} className="relative w-16 h-16 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 shadow-xl" style={{ borderColor: primaryColor }} />
+                        ) : (
+                          <div className="relative w-16 h-16 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-pink-400 to-purple-600 flex items-center justify-center border-2 shadow-xl" style={{ borderColor: primaryColor }}>
+                            <Tag className="w-8 h-8 sm:w-12 sm:h-12 text-white" />
+                          </div>
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-lg sm:text-xl font-bold text-foreground truncate">
-                          {activeTab === 'voucher' ? 'Digital Vouchers' : 'Gift Cards'}
+                          {isCategoryMode && categoryGame ? categoryGame.name : (activeTab === 'voucher' ? 'Digital Vouchers' : 'Gift Cards')}
                         </h3>
                         <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                          {activeTab === 'voucher' 
-                            ? 'Redeem codes delivered instantly' 
-                            : 'Perfect gifting solution'}
+                          {isCategoryMode
+                            ? (categoryGame?.description || 'Redeem codes delivered instantly')
+                            : (activeTab === 'voucher' ? 'Redeem codes delivered instantly' : 'Perfect gifting solution')}
                         </p>
                       </div>
                     </div>
                   </div>
+
+                  {!authUser && (
+                    <div className="p-4 rounded-[28px] shadow-lg ring-1 ring-white/40 border border-white/60 bg-white/75 backdrop-blur-2xl animate-fade-in-up">
+                      <div className="flex items-center gap-3">
+                        <LogIn className="w-5 h-5 text-gold shrink-0" />
+                        <p className="text-xs sm:text-sm text-muted-foreground flex-1">
+                          Login is required to order vouchers or gift cards.
+                        </p>
+                        <Button
+                          size="sm"
+                          className="bg-gold hover:bg-gold-dark text-primary-foreground whitespace-nowrap"
+                          onClick={() => navigate(`/auth?redirect=${encodeURIComponent(location.pathname + location.search)}`)}
+                        >
+                          Login
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="lg:col-span-8 space-y-6">
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => setActiveTab('voucher')}
-                    className={cn(
-                      "px-5 py-2.5 rounded-full text-sm font-semibold transition-all border",
-                      activeTab === 'voucher'
-                        ? "text-white shadow-lg"
-                        : "bg-white/70 text-muted-foreground border-muted hover:bg-white"
-                    )}
-                    style={activeTab === 'voucher' ? { background: primaryColor, borderColor: primaryColor } : {}}
-                  >
-                    Vouchers
-                  </button>
-                  <button
-                    onClick={() => { setActiveTab('gift_card'); setSelectedProduct(null); }}
-                    className={cn(
-                      "px-5 py-2.5 rounded-full text-sm font-semibold transition-all border",
-                      activeTab === 'gift_card'
-                        ? "text-white shadow-lg"
-                        : "bg-white/70 text-muted-foreground border-muted hover:bg-white"
-                    )}
-                    style={activeTab === 'gift_card' ? { background: primaryColor, borderColor: primaryColor } : {}}
-                  >
-                    Gift Cards
-                  </button>
-                </div>
+                {!isCategoryMode && (
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => setActiveTab('voucher')}
+                      className={cn(
+                        "px-5 py-2.5 rounded-full text-sm font-semibold transition-all border",
+                        activeTab === 'voucher'
+                          ? "text-white shadow-lg"
+                          : "bg-white/70 text-muted-foreground border-muted hover:bg-white"
+                      )}
+                      style={activeTab === 'voucher' ? { background: primaryColor, borderColor: primaryColor } : {}}
+                    >
+                      Vouchers
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab('gift_card'); setSelectedProduct(null); }}
+                      className={cn(
+                        "px-5 py-2.5 rounded-full text-sm font-semibold transition-all border",
+                        activeTab === 'gift_card'
+                          ? "text-white shadow-lg"
+                          : "bg-white/70 text-muted-foreground border-muted hover:bg-white"
+                      )}
+                      style={activeTab === 'gift_card' ? { background: primaryColor, borderColor: primaryColor } : {}}
+                    >
+                      Gift Cards
+                    </button>
+                  </div>
+                )}
 
                 {filteredProducts.length === 0 ? (
                   <div className="text-center py-16">
                     <Tag className="w-12 h-12 mx-auto text-muted-foreground/40 mb-4" />
                     <h3 className="text-lg font-semibold text-muted-foreground mb-2">No products available</h3>
-                    <p className="text-sm text-muted-foreground/60">Check back later for new {activeTab === 'voucher' ? 'vouchers' : 'gift cards'}</p>
+                    <p className="text-sm text-muted-foreground/60">
+                      {isCategoryMode ? 'Check back later for new products in this category' : `Check back later for new ${activeTab === 'voucher' ? 'vouchers' : 'gift cards'}`}
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 animate-fade-in-up">
@@ -326,14 +406,42 @@ const GetVgPage: React.FC = () => {
 
                 {selectedProduct && selectedProductData && (
                   <div className="bg-white/80 backdrop-blur-xl rounded-[28px] p-5 sm:p-6 shadow-lg ring-1 ring-white/40 border border-white/60 animate-fade-in-up">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                       <h3 className="font-bold text-lg">Selected: {selectedProductData.name}</h3>
                       <span className="text-2xl font-extrabold" style={{ color: primaryColor }}>
-                        ${selectedProductData.price.toFixed(2)}
+                        ${totalPrice.toFixed(2)}
                       </span>
                     </div>
 
                     <div className="space-y-4">
+                      {/* Quantity */}
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                          Quantity ({quantity} × ${unitPrice.toFixed(2)})
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                            disabled={quantity <= 1}
+                            className="w-10 h-10 rounded-xl border-2 border-muted-foreground/20 bg-white/60 flex items-center justify-center hover:bg-white disabled:opacity-40 transition-all"
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="text-xl font-extrabold w-12 text-center">{quantity}</span>
+                          <button
+                            onClick={() => setQuantity(q => Math.min(MAX_QTY, q + 1))}
+                            disabled={quantity >= MAX_QTY}
+                            className="w-10 h-10 rounded-xl flex items-center justify-center text-white disabled:opacity-40 transition-all shadow-md"
+                            style={{ background: primaryColor }}
+                            aria-label="Increase quantity"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          <span className="text-xs text-muted-foreground ml-2">Max {MAX_QTY} codes per order</span>
+                        </div>
+                      </div>
+
                       <div>
                         <label className="text-sm font-medium text-muted-foreground mb-2 block">Payment Method</label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -388,10 +496,15 @@ const GetVgPage: React.FC = () => {
                             <Loader2 className="w-5 h-5 animate-spin" />
                             កំពុងដំណើរការ...
                           </span>
+                        ) : !authUser ? (
+                          <span className="flex items-center justify-center gap-2 relative z-10">
+                            <LogIn className="w-5 h-5" />
+                            ចូលប្រើដើម្បីទិញ
+                          </span>
                         ) : (
                           <span className="flex items-center justify-center gap-2 relative z-10">
                             <ShoppingCart className="w-5 h-5" />
-                            ទិញឥឡូវ
+                            ទិញឥឡូវ {totalPrice > 0 && `($${totalPrice.toFixed(2)})`}
                           </span>
                         )}
                       </Button>

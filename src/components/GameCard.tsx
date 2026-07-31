@@ -75,14 +75,14 @@ const GameCard: React.FC<GameCardProps> = ({ game, cardBgColor, cardBorderColor,
             <h3 className="font-khmer text-xs sm:text-base font-bold text-foreground line-clamp-1 text-center">
               {game.name}
             </h3>
-            <Link to={`/topup/${game.slug}`} className="block">
+            <Link to={game.tags?.includes('vg') ? `/get-vg/${game.slug}` : `/topup/${game.slug}`} className="block">
               <Button 
                 className="w-full gap-1 sm:gap-2 text-white font-semibold transition-all duration-300 shadow-md text-[10px] sm:text-sm h-8 sm:h-9"
                 style={{ background: `linear-gradient(90deg, ${frameColor} 0%, ${frameColor}dd 100%)` }}
                 size="sm"
               >
                 <Gamepad2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span className="font-khmer">Topup</span>
+                <span className="font-khmer">{game.tags?.includes('vg') ? 'Shop' : 'Topup'}</span>
               </Button>
             </Link>
           </div>

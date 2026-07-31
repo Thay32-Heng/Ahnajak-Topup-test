@@ -57,8 +57,16 @@ router.post('/', optionalAuth, async (req, res) => {
   const b = req.body;
   // Voucher/Gift Card orders have no player_id
   const isCardProduct = !!b.g2bulk_product_id && String(b.g2bulk_product_id).startsWith('card_');
+  // Voucher/Gift Card orders require login (server-enforced, not just UI)
+  if (isCardProduct && !req.user) {
+    return res.status(401).json({ error: 'Login required to order vouchers or gift cards' });
+  }
   if (!isCardProduct && (!b.player_id || String(b.player_id).length > 100)) {
     return res.status(400).json({ error: 'Invalid or too long player_id' });
+  }
+  const quantity = isCardProduct ? Math.floor(Number(b.quantity) || 1) : 1;
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+    return res.status(400).json({ error: 'Quantity must be between 1 and 50' });
   }
   const id = uuid();
   try {
@@ -107,17 +115,17 @@ router.post('/', optionalAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid package — could not verify price' });
     }
     
-    const finalAmount = dbPrice;
+    const finalAmount = Math.round(dbPrice * quantity * 100) / 100;
 
-    // Validate client-provided amount against DB price (price-tampering prevention)
-    if (Number(b.amount) && Number.isFinite(Number(b.amount)) && Math.abs(Number(b.amount) - dbPrice) > 0.0001) {
+    // Validate client-provided amount against DB price × quantity (price-tampering prevention)
+    if (Number(b.amount) && Number.isFinite(Number(b.amount)) && Math.abs(Number(b.amount) - finalAmount) > 0.0001) {
       return res.status(400).json({ error: 'Amount does not match package price' });
     }
 
     await query(
-      `INSERT INTO topup_orders (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [id, req.user?.id || null, b.game_name, b.package_name, b.player_id, b.server_id || null, b.player_name || null, finalAmount, b.currency || 'USD', b.payment_method || null, b.g2bulk_product_id || null]
+      `INSERT INTO topup_orders (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status, quantity)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      [id, req.user?.id || null, b.game_name, b.package_name, b.player_id, b.server_id || null, b.player_name || null, finalAmount, b.currency || 'USD', b.payment_method || null, b.g2bulk_product_id || null, quantity]
     );
     const order = await queryOne('SELECT * FROM topup_orders WHERE id = ?', [id]);
     res.json(order);

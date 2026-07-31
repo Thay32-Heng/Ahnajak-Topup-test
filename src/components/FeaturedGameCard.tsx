@@ -24,7 +24,7 @@ const FeaturedGameCard: React.FC<Props> = ({ game, index }) => {
       className="group animate-fade-in relative"
       style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}
     >
-      <Link to={`/topup/${game.slug}`} className="block h-full">
+      <Link to={game.tags?.includes('vg') ? `/get-vg/${game.slug}` : `/topup/${game.slug}`} className="block h-full">
         <div className="relative h-[100px] bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden transition-all duration-250 ease-out shadow-md group-hover:-translate-y-1 group-hover:shadow-xl">
           {/* Hover glow */}
           <div

@@ -126,7 +126,10 @@ async function handleCreatePayment(req, res) {
     if (!refreshed?.config?.secret_key) return res.status(500).json({ error: 'Gateway not configured' });
   }
   const cfg = gatewayCache['khqrcc'].config;
-  const success_url = req.body.success_url || `https://woosaastore.com/success`;
+  // Success URL: explicit > stored config > this server's webhook (never hardcoded to a third-party domain)
+  const success_url = req.body.success_url || req.body.returnUrl
+    || cfg.success_url
+    || `${req.protocol}://${req.get('host')}/api/khqrcc-webhook?transaction_id=${orderId}`;
   const plainHash = cfg.secret_key + orderId + amount + success_url + remark;
   const hash = crypto.createHash('sha1').update(plainHash).digest('hex');
   const params = new URLSearchParams({
