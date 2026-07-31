@@ -584,6 +584,13 @@ const AdminPage: React.FC = () => {
                 <span>Games</span>
               </TabsTrigger>
               <TabsTrigger
+                value="vg"
+                className="w-full justify-start data-[state=active]:bg-gold data-[state=active]:text-primary-foreground text-xs sm:text-sm"
+              >
+                <Gift className="w-4 h-4 mr-2 shrink-0" />
+                <span>VG</span>
+              </TabsTrigger>
+              <TabsTrigger
                 value="khqr"
                 className="w-full justify-start data-[state=active]:bg-gold data-[state=active]:text-primary-foreground text-xs sm:text-sm"
               >
@@ -1932,11 +1939,6 @@ const AdminPage: React.FC = () => {
                     <G2BulkFullImport onImportComplete={refreshGames} />
                   </div>
 
-                  {/* Voucher & Gift Card Import */}
-                  <div className="mb-6">
-                    <G2BulkVGImport />
-                  </div>
-
                 {/* Bulk Linker */}
                 <div className="mb-6">
                   <G2BulkBulkLinker games={games} onLinkComplete={refreshGames} />
@@ -3141,6 +3143,13 @@ const AdminPage: React.FC = () => {
                 </SortableContext>
                 </DndContext>
               </div>
+              </TabsContent>
+
+              {/* VG (Voucher & Gift Card) Import */}
+              <TabsContent value="vg" className="overflow-hidden">
+                <div className="max-h-[calc(100vh-160px)] overflow-y-auto space-y-6 pr-2">
+                  <G2BulkVGImport />
+                </div>
               </TabsContent>
 
               {/* KHQR Payment Settings */}
