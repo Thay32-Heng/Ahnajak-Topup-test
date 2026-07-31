@@ -1,8 +1,8 @@
 /**
  * routes/vg-products.cjs — Voucher & Gift Card products
  * GET  /api/products/vg            — public: list voucher & gift card products
- * GET  /api/products/vg/search     — admin: search G2Bulk products (for easy adding)
- * POST /api/products/vg/import     — admin: import voucher/gift card products from G2Bulk
+ * GET  /api/products/vg/categories — admin: list G2Bulk categories (searchable)
+ * POST /api/products/vg/import     — admin: import products from G2Bulk (all / by ids / by category)
  */
 const express = require('express');
 const { query, queryOne } = require('../db.cjs');
@@ -52,8 +52,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Admin: list G2Bulk categories (main voucher/gift-card groups)
+// Admin: list G2Bulk categories (with imported counts), searchable by title
 router.get('/categories', requireAdmin, async (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase();
   try {
     const cfg = await queryOne("SELECT * FROM api_configurations WHERE api_name = 'g2bulk' AND is_enabled = 1");
     if (!cfg?.api_secret) return res.status(400).json({ error: 'G2Bulk not configured' });
@@ -62,15 +63,31 @@ router.get('/categories', requireAdmin, async (req, res) => {
     const catRes = await fetch(`${G2BULK_API_URL}/category`, { headers });
     const catData = await catRes.json();
 
-    const categories = Array.isArray(catData.categories)
+    // Count already-imported products per category
+    const [rows] = await query(
+      "SELECT fields FROM g2bulk_products WHERE product_type = 'card'"
+    );
+    const importedByCategory = {};
+    for (const r of rows) {
+      const title = parseFields(r.fields).category_title;
+      if (title) importedByCategory[title] = (importedByCategory[title] || 0) + 1;
+    }
+
+    let categories = Array.isArray(catData.categories)
       ? catData.categories.map(c => ({
           id: c.id,
           title: c.title || `Category ${c.id}`,
           description: c.description || null,
           image_url: c.image_url || null,
           product_count: c.product_count || 0,
+          imported_count: importedByCategory[c.title] || 0,
         }))
       : [];
+
+    if (q) {
+      categories = categories.filter(c => c.title.toLowerCase().includes(q));
+    }
+
     return res.json({ categories });
   } catch (err) {
     console.error('[vg-products] Categories error:', err);
@@ -78,106 +95,17 @@ router.get('/categories', requireAdmin, async (req, res) => {
   }
 });
 
-// Admin: products inside a G2Bulk category
-router.get('/category/:id', requireAdmin, async (req, res) => {
-  try {
-    const cfg = await queryOne("SELECT * FROM api_configurations WHERE api_name = 'g2bulk' AND is_enabled = 1");
-    if (!cfg?.api_secret) return res.status(400).json({ error: 'G2Bulk not configured' });
-
-    const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': cfg.api_secret };
-    const prodRes = await fetch(`${G2BULK_API_URL}/category/${req.params.id}`, { headers });
-    const prodData = await prodRes.json();
-    if (!prodData.products || !Array.isArray(prodData.products)) {
-      return res.json({ products: [], category_title: prodData.category_title || null });
-    }
-
-    const [rows] = await query(
-      "SELECT g2bulk_product_id, fields FROM g2bulk_products WHERE product_type = 'card'"
-    );
-    const importedMap = {};
-    for (const r of rows) {
-      importedMap[r.g2bulk_product_id] = parseFields(r.fields).category === 'voucher' ? 'voucher' : 'gift_card';
-    }
-
-    const products = prodData.products.map(p => {
-      const pid = `card_${p.id}`;
-      return {
-        id: p.id,
-        name: p.title || p.name || `Card ${p.id}`,
-        category: prodData.category_title || p.category_title || null,
-        amount: parseFloat(p.unit_price ?? p.amount) || 0,
-        stock: p.stock ?? null,
-        imported: !!importedMap[pid],
-        importedCategory: importedMap[pid] || null,
-      };
-    });
-    return res.json({ products, category_title: prodData.category_title || null });
-  } catch (err) {
-    console.error('[vg-products] Category products error:', err);
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// Admin: search G2Bulk products to add (like the game search in imports)
-router.get('/search', requireAdmin, async (req, res) => {
-  const q = String(req.query.q || '').trim().toLowerCase();
-  try {
-    const cfg = await queryOne("SELECT * FROM api_configurations WHERE api_name = 'g2bulk' AND is_enabled = 1");
-    if (!cfg?.api_secret) return res.status(400).json({ error: 'G2Bulk not configured' });
-
-    const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': cfg.api_secret };
-    const prodRes = await fetch(`${G2BULK_API_URL}/products`, { headers });
-    const prodData = await prodRes.json();
-    if (!prodData.products || !Array.isArray(prodData.products)) {
-      return res.json({ products: [] });
-    }
-
-    let list = prodData.products;
-    if (q) {
-      list = list.filter(p => {
-        const title = String(p.title || p.name || '').toLowerCase();
-        const id = String(p.id || '').toLowerCase();
-        const amount = String(p.unit_price ?? p.amount ?? '');
-        const category = String(p.category_title || '').toLowerCase();
-        return title.includes(q) || id.includes(q) || amount.includes(q) || category.includes(q);
-      });
-    }
-
-    // Flag products already imported (and their category)
-    const [rows] = await query(
-      "SELECT g2bulk_product_id, fields FROM g2bulk_products WHERE product_type = 'card'"
-    );
-    const importedMap = {};
-    for (const r of rows) {
-      importedMap[r.g2bulk_product_id] = parseFields(r.fields).category === 'voucher' ? 'voucher' : 'gift_card';
-    }
-
-    const products = list.slice(0, 200).map(p => {
-      const pid = `card_${p.id}`;
-      return {
-        id: p.id,
-        name: p.title || p.name || `Card ${p.id}`,
-        category: p.category_title || null,
-        amount: parseFloat(p.unit_price ?? p.amount) || 0,
-        stock: p.stock ?? null,
-        imported: !!importedMap[pid],
-        importedCategory: importedMap[pid] || null,
-      };
-    });
-    return res.json({ products, total: list.length });
-  } catch (err) {
-    console.error('[vg-products] Search error:', err);
-    return res.status(500).json({ error: err.message });
-  }
-});
-
 // Admin: import voucher/gift card products from G2Bulk
-// body: { product_type: 'voucher'|'gift_card', productIds?: string[] } — productIds limits the import
+// body: { product_type: 'voucher'|'gift_card', categoryId?: number|string, productIds?: string[] }
+//   categoryId — import every product inside that G2Bulk category
+//   productIds  — import only the listed products
+//   (neither → import everything from /products)
 router.post('/import', requireAdmin, async (req, res) => {
   const { product_type } = req.body; // 'voucher' | 'gift_card'
   if (!product_type || !['voucher', 'gift_card'].includes(product_type)) {
     return res.status(400).json({ error: 'product_type must be "voucher" or "gift_card"' });
   }
+  const categoryId = req.body.categoryId !== undefined ? String(req.body.categoryId) : null;
   const onlyIds = Array.isArray(req.body.productIds) ? new Set(req.body.productIds.map(String)) : null;
 
   try {
@@ -185,7 +113,8 @@ router.post('/import', requireAdmin, async (req, res) => {
     if (!cfg?.api_secret) return res.status(400).json({ error: 'G2Bulk not configured' });
 
     const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': cfg.api_secret };
-    const prodRes = await fetch(`${G2BULK_API_URL}/products`, { headers });
+    const url = categoryId ? `${G2BULK_API_URL}/category/${categoryId}` : `${G2BULK_API_URL}/products`;
+    const prodRes = await fetch(url, { headers });
     const prodData = await prodRes.json();
 
     if (!prodData.products || !Array.isArray(prodData.products)) {
@@ -195,7 +124,7 @@ router.post('/import', requireAdmin, async (req, res) => {
     let imported = 0;
     for (const prod of prodData.products) {
       if (onlyIds && !onlyIds.has(String(prod.id))) continue;
-      // G2Bulk /products returns: { id, title, description, category_id, category_title, unit_price, image_url, stock }
+      // G2Bulk products return: { id, title, description, category_id, category_title, unit_price, image_url, stock }
       const pName = prod.title || prod.name || `Card ${prod.id}`;
       const amount = parseFloat(prod.unit_price ?? prod.amount) || 0;
       const fields = { category: product_type, category_title: prod.category_title || null, stock: prod.stock ?? null, image_url: prod.image_url || null };
