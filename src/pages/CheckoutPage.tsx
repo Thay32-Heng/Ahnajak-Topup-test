@@ -39,6 +39,7 @@ const CheckoutPage = () => {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [orderComplete, setOrderComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qrNonce, setQrNonce] = useState(0);
 
   const getFinalTotal = () => getTotal();
 
@@ -59,43 +60,49 @@ const CheckoutPage = () => {
     }
   }, [ikhodePayment?.isEnabled, items.length]);
 
-  const generateKHQR = async () => {
+  const generateKHQR = async (reuseOrder = false) => {
     if (items.length === 0) return;
 
     setGeneratingQR(true);
     setError(null);
 
     try {
-      // First create the order with G2Bulk product ID
-      const firstItem = items[0];
-      const { data: orderData, error: orderError } = await db.functions.invoke("process-topup", {
-        body: {
-          game_name: firstItem.gameName,
-          package_name: firstItem.packageName,
-          player_id: firstItem.playerId,
-          server_id: firstItem.serverId || null,
-          player_name: firstItem.playerName,
-          amount: getFinalTotal(),
-          currency: settings.packageCurrency || "USD",
-          payment_method: "KHQR",
-          g2bulk_product_id: firstItem.g2bulkProductId || null,
-          is_preorder: isPreorder,
-          scheduled_fulfill_at: firstItem.scheduledFulfillAt || null,
-        },
-      });
+      let newOrderId = orderId;
 
-      if (orderError) throw orderError;
+      // Create the order with G2Bulk product ID (only once per checkout session)
+      if (!reuseOrder || !newOrderId) {
+        const firstItem = items[0];
+        const { data: orderData, error: orderError } = await db.functions.invoke("process-topup", {
+          body: {
+            game_name: firstItem.gameName,
+            package_name: firstItem.packageName,
+            player_id: firstItem.playerId,
+            server_id: firstItem.serverId || null,
+            player_name: firstItem.playerName,
+            amount: getFinalTotal(),
+            currency: settings.packageCurrency || "USD",
+            payment_method: "KHQR",
+            g2bulk_product_id: firstItem.g2bulkProductId || null,
+            is_preorder: isPreorder,
+            scheduled_fulfill_at: firstItem.scheduledFulfillAt || null,
+          },
+        });
 
-      const newOrderId = orderData?.order_id;
-      if (!newOrderId) throw new Error("Failed to create order");
+        if (orderError) throw orderError;
 
-      setOrderId(newOrderId);
+        newOrderId = orderData?.order_id;
+        if (!newOrderId) throw new Error("Failed to create order");
+
+        setOrderId(newOrderId);
+      }
 
       // Generate KHQR via Ahnajak gateway (DB price is authoritative)
+      // A fresh bill_number is issued on every call, so the old expired QR is voided
       const { data, error } = await db.functions.invoke("ahnajak-khqr", {
         body: {
           action: "generate-qr",
           orderId: newOrderId,
+          expires_in_seconds: 900,
         },
       });
 
@@ -108,6 +115,7 @@ const CheckoutPage = () => {
           orderId: newOrderId,
           amount: data.amount,
         });
+        setQrNonce((n) => n + 1); // remount card to reset the countdown timer
       } else {
         throw new Error(data?.error || "Failed to generate QR code");
       }
@@ -123,6 +131,18 @@ const CheckoutPage = () => {
       setGeneratingQR(false);
     }
   };
+
+  // iOS Safari restores the page from bfcache after returning from the banking app,
+  // which would show the old expired QR — regenerate a fresh one for the same order.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted && generatedQR && orderId) {
+        generateKHQR(true);
+      }
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, [generatedQR, orderId]);
 
   const handlePaymentComplete = () => {
     clearCart();
@@ -299,13 +319,14 @@ const CheckoutPage = () => {
                     <AlertCircle className="w-12 h-12 mx-auto text-destructive mb-4" />
                     <p className="text-destructive font-medium mb-2">កំហុស</p>
                     <p className="text-sm text-muted-foreground mb-4">{error}</p>
-                    <Button onClick={generateKHQR} variant="outline">
+                    <Button onClick={() => generateKHQR(!!orderId)} variant="outline">
                       ព្យាយាមម្តងទៀត
                     </Button>
                   </CardContent>
                 </Card>
               ) : generatedQR ? (
                 <KHQRPaymentCard
+                  key={qrNonce}
                   qrCode={generatedQR.qrCodeData}
                   amount={getFinalTotal()}
                   currency={settings.packageCurrency || "USD"}
@@ -313,6 +334,7 @@ const CheckoutPage = () => {
                   description={`${items.length} កញ្ចប់`}
                   onCancel={handleCancelPayment}
                   onComplete={handlePaymentComplete}
+                  onRegenerate={() => generateKHQR(true)}
                   paymentMethod="KHQR"
                   md5={generatedQR.md5}
                   isPreorder={isPreorder}

@@ -49,7 +49,15 @@ const authLimiter = rateLimit({
 });
 const financialLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: 60,
+  message: { error: 'Too many requests — please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+// Higher limit for the payment polling endpoint (1 request per poll, shared mobile-NAT IPs)
+const pollLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
   message: { error: 'Too many requests — please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -111,7 +119,7 @@ app.use('/api/admin', require('./routes/api-configs.cjs'));
 app.use('/api/process-topup', financialLimiter, require('./routes/process-topup.cjs'));
 app.use('/api/verify-game-id', require('./routes/verify-game.cjs'));
 app.use('/api/g2bulk-api', require('./routes/g2bulk.cjs'));
-app.use('/api/ahnajak-khqr', financialLimiter, require('./routes/ahnajak-khqr.cjs'));
+app.use('/api/ahnajak-khqr', pollLimiter, require('./routes/ahnajak-khqr.cjs'));
 app.use('/api/ikhode-payment', financialLimiter, require('./routes/ikhode.cjs'));
 app.use('/api/update-prices', require('./routes/prices.cjs'));
 

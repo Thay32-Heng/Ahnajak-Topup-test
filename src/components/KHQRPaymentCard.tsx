@@ -16,6 +16,7 @@ interface KHQRPaymentCardProps {
   description?: string;
   onComplete?: () => void;
   onCancel?: () => void;
+  onRegenerate?: () => void;
   expiresIn?: number;
   paymentMethod?: string;
   md5?: string;
@@ -30,7 +31,8 @@ const KHQRPaymentCard = ({
   description,
   onComplete,
   onCancel,
-  expiresIn = 300,
+  onRegenerate,
+  expiresIn = 900,
   paymentMethod = "KHQR",
   md5,
   isPreorder = false,
@@ -91,6 +93,7 @@ const KHQRPaymentCard = ({
       if (!silent) setChecking(true);
 
       try {
+        // Server-side check already queries both the gateway and the DB
         const { data: statusData, error: statusError } = await db.functions.invoke("ahnajak-khqr", {
           body: { action: "check-status", orderId, md5, is_preorder: isPreorder },
         });
@@ -106,20 +109,7 @@ const KHQRPaymentCard = ({
           return;
         }
 
-        // Fallback: direct DB check
-        const tableName = isPreorder ? "preorder_orders" : "topup_orders";
-        const { data: order, error: dbError } = await db
-          .from(tableName)
-          .select("status")
-          .eq("id", orderId)
-          .single();
-
-        if (dbError) throw dbError;
-
-        if (isSuccessStatus(order?.status)) {
-          console.log(`[Poll] Payment success detected (DB)! Status: ${String(order?.status)}`);
-          handlePaymentSuccess();
-        } else if (!silent) {
+        if (!silent) {
           toast({
             title: "ការបង់ប្រាក់មិនទាន់ទទួល",
             description: "សូមបញ្ចប់ការទូទាត់នៅក្នុងកម្មវិធីធនាគាររបស់អ្នក",
@@ -174,16 +164,18 @@ const KHQRPaymentCard = ({
     };
   }, [paymentStatus, orderId, isSuccessStatus, normalizeStatus, handlePaymentSuccess, isPreorder]);
 
+  const isExpired = timeLeft === 0;
+
   // Polling for payment status (fallback)
   useEffect(() => {
-    if (paymentStatus !== "pending") return;
+    if (paymentStatus !== "pending" || isExpired) return;
 
     const pollInterval = setInterval(async () => {
       await checkPaymentStatus(true);
-    }, 1500); // Fast polling - every 1.5 seconds
+    }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(pollInterval);
-  }, [paymentStatus, orderId, checkPaymentStatus]);
+  }, [paymentStatus, orderId, checkPaymentStatus, isExpired]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -197,8 +189,6 @@ const KHQRPaymentCard = ({
     toast({ title: `${label} បានចម្លង!` });
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const isExpired = timeLeft === 0;
 
   if (paymentStatus === "paid") {
     return (
@@ -328,23 +318,33 @@ const KHQRPaymentCard = ({
 
         {/* Actions */}
         <div className="mt-6 space-y-3">
-          <Button
-            onClick={() => checkPaymentStatus(false)}
-            disabled={checking || isExpired}
-            className="w-full bg-gold hover:bg-gold/80 text-white gap-2"
-          >
-            {checking ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                កំពុងពិនិត្យ...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                ខ្ញុំបានបង់ប្រាក់រួចហើយ
-              </>
-            )}
-          </Button>
+          {isExpired && onRegenerate ? (
+            <Button
+              onClick={onRegenerate}
+              className="w-full bg-gold hover:bg-gold/80 text-white gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              បង្កើត QR ថ្មី
+            </Button>
+          ) : (
+            <Button
+              onClick={() => checkPaymentStatus(false)}
+              disabled={checking || isExpired}
+              className="w-full bg-gold hover:bg-gold/80 text-white gap-2"
+            >
+              {checking ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  កំពុងពិនិត្យ...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  ខ្ញុំបានបង់ប្រាក់រួចហើយ
+                </>
+              )}
+            </Button>
+          )}
 
           {onCancel && (
             <Button variant="outline" onClick={onCancel} className="w-full">
