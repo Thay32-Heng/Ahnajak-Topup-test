@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useSite } from "@/contexts/SiteContext";
 import { useFavicon } from "@/hooks/useFavicon";
+import { toast } from "@/hooks/use-toast";
 
 interface OrderData {
   id: string;
@@ -37,6 +38,7 @@ interface OrderData {
   status: string;
   status_message?: string;
   payment_method?: string;
+  card_codes?: Array<{ code: string; serial?: string; expire?: string }>;
   created_at: string;
   updated_at: string;
 }
@@ -365,6 +367,45 @@ const InvoicePage = () => {
               {order.status_message && (
                 <div className="text-sm text-muted-foreground text-center p-3 bg-muted/30 rounded-lg">
                   {order.status_message}
+                </div>
+              )}
+
+              {/* Delivered Voucher/Gift Card Codes */}
+              {Array.isArray(order.card_codes) && order.card_codes.length > 0 && (
+                <div className="border-2 border-dashed border-gold/40 rounded-2xl p-4 bg-gradient-to-br from-gold/10 to-transparent animate-fade-in-up">
+                  <h3 className="text-center font-bold text-gold mb-1">
+                    🎁 {order.game_name === 'Gift Card' ? 'Gift Card' : 'Voucher'} Codes Delivered
+                  </h3>
+                  <p className="text-center text-xs text-muted-foreground mb-3">
+                    Copy your codes below. They will be available here and in your order history.
+                  </p>
+                  <div className="space-y-2">
+                    {order.card_codes.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-3 rounded-xl bg-white/90 border border-gold/20 shadow-sm">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono font-bold text-sm sm:text-base tracking-wide break-all select-all">
+                            {item.code}
+                          </p>
+                          {(item.serial || item.expire) && (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {item.serial && `Serial: ${item.serial} `}
+                              {item.expire && `Expires: ${item.expire}`}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(item.code).then(() => {
+                              toast({ title: "Code copied to clipboard" });
+                            });
+                          }}
+                          className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gold/10 text-gold border border-gold/30 hover:bg-gold/20 transition-colors"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

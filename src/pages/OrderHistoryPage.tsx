@@ -30,6 +30,7 @@ interface Order {
   amount: number;
   currency: string;
   status: string;
+  card_codes?: Array<{ code: string; serial?: string; expire?: string }>;
   created_at: string;
 }
 
@@ -215,6 +216,29 @@ const OrderHistoryPage = () => {
                           <span>Player: {order.player_id}</span>
                           <span>{formatDate(order.created_at)}</span>
                         </div>
+
+                        {Array.isArray(order.card_codes) && order.card_codes.length > 0 && (
+                          <div className="mt-3 p-3 rounded-xl bg-gold/5 border border-gold/20">
+                            <p className="text-xs font-semibold text-gold mb-2">
+                              🎁 {order.game_name === 'Gift Card' ? 'Gift Card' : 'Voucher'} Codes
+                            </p>
+                            <div className="space-y-1.5">
+                              {order.card_codes.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <code className="flex-1 font-mono text-xs bg-white/70 dark:bg-zinc-800/70 rounded-lg px-2 py-1 select-all break-all">
+                                    {item.code}
+                                  </code>
+                                  <button
+                                    onClick={() => navigator.clipboard.writeText(item.code)}
+                                    className="shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md bg-gold/10 text-gold border border-gold/30 hover:bg-gold/20 transition-colors"
+                                  >
+                                    Copy
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex items-center gap-4">
