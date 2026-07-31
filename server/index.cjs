@@ -121,6 +121,9 @@ app.use('/api', require('./routes/image-search.cjs'));
 // Telegram bot auth (login via bot /start)
 app.use('/api/auth', require('./routes/telegram-bot-auth.cjs'));
 
+// Voucher & Gift Card products
+app.use('/api/products/vg', require('./routes/vg-products.cjs'));
+
 // Misc (edge function aliases: get-ikhode-public-config, khqrcc-payment, etc.)
 app.use('/api', require('./routes/misc.cjs'));
 

@@ -27,6 +27,7 @@ import PreorderTopupPage from "./pages/PreorderTopupPage";
 import TermsPage from "./pages/TermsPage";
 import ProfilePage from "./pages/ProfilePage";
 import PointExchangePage from "./pages/PointExchangePage";
+import GetVgPage from "./pages/GetVgPage";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -51,6 +52,7 @@ const App = () => (
                   <Route path="/events" element={<EventsPage />} />
                   <Route path="/preorder" element={<PreorderPage />} />
                   <Route path="/preorder/:gameSlug" element={<PreorderTopupPage />} />
+                  <Route path="/get-vg" element={<GetVgPage />} />
                   <Route path="/auth" element={<AuthPage />} />
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/privacy" element={<TermsPage />} />

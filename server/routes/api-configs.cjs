@@ -124,6 +124,24 @@ router.delete('/g2bulk-products/:id', requireAuth, requireAdmin, async (req, res
   catch (err) { sendError(res, err, 'DELETE /g2bulk-products/:id'); }
 });
 
+// Toggle g2bulk product active status (show/hide on /get-vg page)
+router.put('/g2bulk-products/:id/toggle-active', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await query('UPDATE g2bulk_products SET is_active = NOT is_active WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'PUT /g2bulk-products/:id/toggle-active'); }
+});
+
+// Update g2bulk product price
+router.put('/g2bulk-products/:id/price', requireAuth, requireAdmin, async (req, res) => {
+  const { price } = req.body;
+  if (typeof price !== 'number' || price < 0) return res.status(400).json({ error: 'Invalid price' });
+  try {
+    await query('UPDATE g2bulk_products SET price = ? WHERE id = ?', [price, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'PUT /g2bulk-products/:id/price'); }
+});
+
 // Update package markup — recalculates price from G2Bulk cost + markup %
 router.put('/packages/:id/markup', requireAuth, requireAdmin, async (req, res) => {
   const { price_markup_percent } = req.body;

@@ -62,6 +62,7 @@ import G2BulkSyncWidget from "@/components/admin/G2BulkSyncWidget";
 import G2BulkBulkLinker from "@/components/admin/G2BulkBulkLinker";
 import G2BulkLinkStats from "@/components/admin/G2BulkLinkStats";
 import G2BulkFullImport from "@/components/admin/G2BulkFullImport";
+import G2BulkVGImport from "@/components/admin/G2BulkVGImport";
 import G2BulkDebugLogs from "@/components/admin/G2BulkDebugLogs";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import PackageStockBadge from "@/components/admin/PackageStockBadge";
@@ -90,10 +91,11 @@ import PreorderGamesTab from "@/components/admin/PreorderGamesTab";
 import PreorderOrdersTab from "@/components/admin/PreorderOrdersTab";
 import SalesActivityTab from "@/components/admin/SalesActivityTab";
 import ProductCatalogTab from "@/components/admin/ProductCatalogTab";
+import VGProductCatalogTab from "@/components/admin/VGProductCatalogTab";
 import CdnMigrationTab from "@/components/admin/CdnMigrationTab";
 import PointExchangeTab from "@/components/admin/PointExchangeTab";
 import AiTab from "@/components/admin/AiTab";
-import { Coins, Sparkles } from "lucide-react";
+import { Coins, Sparkles, Gift } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -656,8 +658,15 @@ const AdminPage: React.FC = () => {
                 className="w-full justify-start data-[state=active]:bg-gold data-[state=active]:text-primary-foreground text-xs sm:text-sm"
               >
                 <DollarSign className="w-4 h-4 mr-2 shrink-0" />
-                <span>Prices</span>
-              </TabsTrigger>
+                  <span>Prices</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="vg-catalog"
+                  className="w-full justify-start data-[state=active]:bg-purple-600 data-[state=active]:text-white text-xs sm:text-sm"
+                >
+                  <Gift className="w-4 h-4 mr-2 shrink-0" />
+                  <span>VG Prices</span>
+                </TabsTrigger>
               <TabsTrigger
                 value="backup"
                 className="w-full justify-start data-[state=active]:bg-gold data-[state=active]:text-primary-foreground text-xs sm:text-sm"
@@ -1919,9 +1928,14 @@ const AdminPage: React.FC = () => {
                 </div>
 
                 {/* Full Import */}
-                <div className="mb-6">
-                  <G2BulkFullImport onImportComplete={refreshGames} />
-                </div>
+                  <div className="mb-6">
+                    <G2BulkFullImport onImportComplete={refreshGames} />
+                  </div>
+
+                  {/* Voucher & Gift Card Import */}
+                  <div className="mb-6">
+                    <G2BulkVGImport />
+                  </div>
 
                 {/* Bulk Linker */}
                 <div className="mb-6">
@@ -3185,6 +3199,11 @@ const AdminPage: React.FC = () => {
               {/* Prices */}
               <TabsContent value="product-catalog">
                 <ProductCatalogTab />
+              </TabsContent>
+
+              {/* Voucher & Gift Card Prices */}
+              <TabsContent value="vg-catalog">
+                <VGProductCatalogTab />
               </TabsContent>
 
               {/* Database Backup */}
