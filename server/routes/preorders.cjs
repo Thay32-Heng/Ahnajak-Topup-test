@@ -118,7 +118,9 @@ router.get('/orders/:id', optionalAuth, async (req, res) => {
   try {
     const order = await queryOne('SELECT * FROM preorder_orders WHERE id = ?', [req.params.id]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    
+
+    // Only the owner or an admin may view the full order — mask sensitive fields otherwise
+    let canViewFull = false;
     if (order.user_id) {
       if (!req.user) return res.status(401).json({ error: 'Authentication required' });
       const { hasRole } = require('../auth.cjs');
@@ -126,8 +128,17 @@ router.get('/orders/:id', optionalAuth, async (req, res) => {
       if (order.user_id !== req.user.id && !isAdmin) {
         return res.status(403).json({ error: 'Access denied' });
       }
+      canViewFull = true;
+    } else if (req.user) {
+      const { hasRole } = require('../auth.cjs');
+      const isAdmin = await hasRole(req.user.id, 'admin');
+      canViewFull = isAdmin;
     }
-    
+
+    if (!canViewFull) {
+      const { card_codes, g2bulk_order_id, user_id, ...safe } = order;
+      return res.json(safe);
+    }
     res.json(order);
   } catch (err) { sendError(res, err, 'GET /preorders/orders/:id'); }
 });

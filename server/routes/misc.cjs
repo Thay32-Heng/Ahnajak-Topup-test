@@ -27,6 +27,15 @@ router.post('/khqrcc-payment', async (req, res) => {
   const crypto = require('crypto');
   const { orderId, amount, remark, returnUrl } = req.body;
   try {
+    // Validate amount against the database order (price-tampering prevention)
+    const dbOrder = await queryOne('SELECT amount FROM topup_orders WHERE id = ?', [orderId]);
+    if (!dbOrder) return res.status(404).json({ error: 'Order not found' });
+    const dbAmount = parseFloat(dbOrder.amount);
+    const reqAmount = parseFloat(amount);
+    if (!Number.isFinite(dbAmount) || !Number.isFinite(reqAmount) || Math.abs(dbAmount - reqAmount) > 0.01) {
+      return res.status(400).json({ error: 'Amount mismatch' });
+    }
+
     const gw = await queryOne(`SELECT config, enabled FROM payment_gateways WHERE slug = 'khqrcc'`);
     if (!gw || !gw.enabled) return res.status(400).json({ error: 'Gateway disabled or not found' });
     const cfg = typeof gw.config === 'string' ? JSON.parse(gw.config) : gw.config || {};
