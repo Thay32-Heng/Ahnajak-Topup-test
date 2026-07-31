@@ -233,14 +233,17 @@ router.post('/markup', requireAdmin, async (req, res) => {
       "INSERT INTO site_settings (id, `key`, value) VALUES (UUID(), 'vg_markup_percent', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)",
       [JSON.stringify(markup)]
     );
-    const [rows] = await query("SELECT id, fields FROM g2bulk_products WHERE product_type = 'card'");
+    const [rows] = await query("SELECT id, price, fields FROM g2bulk_products WHERE product_type = 'card'");
     let updated = 0;
     for (const r of rows) {
       const fields = parseFields(r.fields);
-      const unitPrice = parseFloat(fields.unit_price);
+      // Legacy rows may lack unit_price — fall back to current sell price as the baseline
+      let unitPrice = parseFloat(fields.unit_price);
+      if (!Number.isFinite(unitPrice) || unitPrice <= 0) unitPrice = parseFloat(r.price);
       if (!Number.isFinite(unitPrice) || unitPrice <= 0) continue;
       const price = applyMarkup(unitPrice, markup);
-      await query('UPDATE g2bulk_products SET price = ? WHERE id = ?', [price, r.id]);
+      const newFields = { ...fields, unit_price: unitPrice, markup_percent: markup };
+      await query('UPDATE g2bulk_products SET price = ?, fields = ? WHERE id = ?', [price, JSON.stringify(newFields), r.id]);
       updated++;
     }
     return res.json({ success: true, markup, updated });

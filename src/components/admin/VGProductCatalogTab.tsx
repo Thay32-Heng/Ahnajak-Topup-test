@@ -16,6 +16,7 @@ interface VGProduct {
   g2bulk_product_id: string;
   product_type: string;
   is_active: number;
+  fields?: Record<string, any>;
 }
 
 const VGProductCatalogTab: React.FC = () => {
@@ -28,6 +29,8 @@ const VGProductCatalogTab: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [markup, setMarkup] = useState(0);
   const [markupSaving, setMarkupSaving] = useState(false);
+  const [editingMarkup, setEditingMarkup] = useState<Record<string, string>>({});
+  const [markupSavingId, setMarkupSavingId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchProducts = useCallback(async () => {
@@ -120,13 +123,35 @@ const VGProductCatalogTab: React.FC = () => {
       if (error) throw new Error(error.message || String(error));
       toast({
         title: 'Markup Saved!',
-        description: `${markup}% markup applied to ${(data as any)?.updated || 0} product(s)`,
+        description: `${markup}% applied to ${(data as any)?.updated || 0} product(s)`,
       });
       fetchProducts();
     } catch (err: any) {
       toast({ title: 'Failed to save markup', description: err.message || 'Unknown error', variant: 'destructive' });
     } finally {
       setMarkupSaving(false);
+    }
+  };
+
+  const updateProductMarkup = async (productId: string) => {
+    const val = editingMarkup[productId];
+    if (val === undefined) return;
+    const markupPct = parseFloat(val);
+    if (isNaN(markupPct) || markupPct < 0 || markupPct > 500) {
+      toast({ title: 'Markup must be between 0 and 500', variant: 'destructive' });
+      return;
+    }
+    setMarkupSavingId(productId);
+    try {
+      const { data, error } = await api.put(`/admin/g2bulk-products/${productId}/markup`, { markup: markupPct });
+      if (error) throw new Error(error.message || String(error));
+      toast({ title: 'Markup updated', description: `New sell price $${Number((data as any)?.price).toFixed(2)}` });
+      setEditingMarkup(prev => { const n = { ...prev }; delete n[productId]; return n; });
+      fetchProducts();
+    } catch (err: any) {
+      toast({ title: 'Failed to update markup', description: err.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setMarkupSavingId(null);
     }
   };
 
@@ -186,6 +211,11 @@ const VGProductCatalogTab: React.FC = () => {
                   <tr className="text-muted-foreground border-b border-border">
                     <th className="text-left py-2 font-medium">Product</th>
                     <th className="text-right py-2 font-medium">Selling Price</th>
+                    <th className="text-center py-2 font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        <Percent className="w-3 h-3" /> Markup %
+                      </span>
+                    </th>
                     <th className="text-right py-2 font-medium">
                       <span className="inline-flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" /> G2Bulk Live
@@ -198,6 +228,8 @@ const VGProductCatalogTab: React.FC = () => {
                 <tbody>
                   {filtered.map(p => {
                     const editVal = editingPrice[p.id] !== undefined ? editingPrice[p.id] : String(p.price);
+                    const ownMarkup = p.fields?.markup_percent;
+                    const markupVal = editingMarkup[p.id] !== undefined ? editingMarkup[p.id] : (ownMarkup !== undefined && ownMarkup !== null ? String(ownMarkup) : '');
                     const live = livePrices[p.g2bulk_product_id];
                     const diff = live !== undefined ? Math.round((p.price - live) * 100) / 100 : null;
                     return (
@@ -217,6 +249,29 @@ const VGProductCatalogTab: React.FC = () => {
                               }}
                               onKeyDown={e => { if (e.key === 'Enter') updatePrice(p.id); }}
                             />
+                          </div>
+                        </td>
+                        <td className="py-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min={0}
+                              max={500}
+                              placeholder="—"
+                              value={markupVal}
+                              onChange={e => setEditingMarkup(prev => ({ ...prev, [p.id]: e.target.value }))}
+                              className="w-20 text-center text-sm h-8"
+                              disabled={markupSavingId === p.id}
+                              onBlur={() => {
+                                if (editingMarkup[p.id] !== undefined) updateProductMarkup(p.id);
+                              }}
+                              onKeyDown={e => { if (e.key === 'Enter') updateProductMarkup(p.id); }}
+                            />
+                            {markupSavingId === p.id && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                            {ownMarkup !== undefined && ownMarkup !== null && editingMarkup[p.id] === undefined && (
+                              <Badge variant="outline" className="text-[10px] px-1.5">own</Badge>
+                            )}
                           </div>
                         </td>
                         <td className="py-2 text-right whitespace-nowrap">
@@ -265,7 +320,8 @@ const VGProductCatalogTab: React.FC = () => {
             <span>Price Markup</span>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Selling price = G2Bulk live price + markup%. Applied to existing products and future imports.
+            Global markup — default for new imports and applied to every product (Sell Price = G2Bulk cost + markup%).
+            Use the <Percent className="w-3 h-3 inline" /> Markup % column in the table to override a single product.
           </p>
         </CardHeader>
         <CardContent>

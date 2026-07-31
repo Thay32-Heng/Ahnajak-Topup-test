@@ -158,6 +158,30 @@ router.put('/g2bulk-products/:id/image', requireAuth, requireAdmin, async (req, 
   } catch (err) { sendError(res, err, 'PUT /g2bulk-products/:id/image'); }
 });
 
+// Per-product markup override for VG card products — stored in fields.markup_percent
+// price = unit_price (G2Bulk cost) × (1 + markup%). Overrides the global markup for this product.
+router.put('/g2bulk-products/:id/markup', requireAuth, requireAdmin, async (req, res) => {
+  const markup = parseFloat(req.body?.markup);
+  if (!Number.isFinite(markup) || markup < 0 || markup > 500) {
+    return res.status(400).json({ error: 'markup must be between 0 and 500' });
+  }
+  try {
+    const row = await queryOne('SELECT price, fields, product_type FROM g2bulk_products WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: 'Product not found' });
+    if (row.product_type !== 'card') return res.status(400).json({ error: 'Markup only applies to VG card products' });
+    let fields = row.fields;
+    if (typeof fields === 'string') { try { fields = JSON.parse(fields); } catch { fields = {}; } }
+    if (!fields || typeof fields !== 'object') fields = {};
+    let unitPrice = parseFloat(fields.unit_price);
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) unitPrice = parseFloat(row.price);
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) return res.status(400).json({ error: 'No base price for product' });
+    const price = Math.round(unitPrice * (1 + markup / 100) * 100) / 100;
+    await query('UPDATE g2bulk_products SET price = ?, fields = ? WHERE id = ?',
+      [price, JSON.stringify({ ...fields, unit_price: unitPrice, markup_percent: markup }), req.params.id]);
+    res.json({ success: true, price, unit_price: unitPrice, markup });
+  } catch (err) { sendError(res, err, 'PUT /g2bulk-products/:id/markup'); }
+});
+
 // Update package markup — recalculates price from G2Bulk cost + markup %
 router.put('/packages/:id/markup', requireAuth, requireAdmin, async (req, res) => {
   const { price_markup_percent } = req.body;
