@@ -53,6 +53,7 @@ const App = () => (
                   <Route path="/preorder" element={<PreorderPage />} />
                   <Route path="/preorder/:gameSlug" element={<PreorderTopupPage />} />
                   <Route path="/get-vg" element={<GetVgPage />} />
+                  <Route path="/get-vg/:slug" element={<GetVgPage />} />
                   <Route path="/auth" element={<AuthPage />} />
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/privacy" element={<TermsPage />} />
