@@ -109,7 +109,17 @@ async function fulfillCardOrder(orderId, quantity, order, apiKey, tableName) {
         : (typeof rawItems === 'string' && rawItems.trim()
           ? rawItems.split(',').map(s => s.trim())
           : []);
-      allDeliveryItems.push(...items.map(item => ({ code: item, serial: '', expire: '' })));
+      // Normalize delivery items (G2Bulk may return plain strings or objects)
+      const mapped = items
+        .map(item => {
+          if (item && typeof item === 'object') {
+            const code = String(item.code ?? item.serial ?? item.id ?? '').trim();
+            return { code, serial: String(item.serial ?? item.serial_number ?? '').trim(), expire: String(item.expire ?? item.expiry ?? '').trim() };
+          }
+          return { code: String(item).trim(), serial: '', expire: '' };
+        })
+        .filter(it => it.code);
+      allDeliveryItems.push(...mapped);
     } else {
       lastError = result.message || result.detail?.message || 'Card purchase failed';
     }
@@ -383,6 +393,54 @@ async function fulfillG2BulkOrder(orderId, tableName = 'topup_orders') {
   }
 }
 
+// ── Recovery sweeper (called every 60s from index.cjs) ──────────────────────
+// Money-loss protection:
+//  - 'paid' orders stuck before fulfillment are retried (atomic lock makes this safe —
+//    a crashed attempt leaves status 'processing', so 'paid' means G2Bulk was never called)
+//  - due preorders (scheduled time passed) are fulfilled
+//  - 'processing' orders stuck 15+ min are NEVER auto-retried (double-charge risk),
+//    only flagged + alerted for manual review
+async function recoverStuckOrders() {
+  try {
+    const [paidOrders] = await query(
+      `SELECT id FROM topup_orders
+       WHERE status = 'paid' AND TIMESTAMPDIFF(MINUTE, updated_at, NOW()) >= 1
+       ORDER BY updated_at LIMIT 10`
+    );
+    for (const row of paidOrders) {
+      try { await fulfillG2BulkOrder(row.id); }
+      catch (e) { console.error('[sweeper] fulfill failed:', row.id, e.message); }
+    }
+
+    const [duePreorders] = await query(
+      `SELECT id FROM preorder_orders
+       WHERE status = 'paid' AND scheduled_fulfill_at IS NOT NULL AND scheduled_fulfill_at <= NOW()
+       ORDER BY scheduled_fulfill_at LIMIT 10`
+    );
+    for (const row of duePreorders) {
+      try { await fulfillG2BulkOrder(row.id, 'preorder_orders'); }
+      catch (e) { console.error('[sweeper] preorder fulfill failed:', row.id, e.message); }
+    }
+
+    const [stuck] = await query(
+      `SELECT id, game_name, package_name, amount, g2bulk_order_id FROM topup_orders
+       WHERE status = 'processing' AND TIMESTAMPDIFF(MINUTE, updated_at, NOW()) >= 15
+         AND (status_message IS NULL OR status_message NOT LIKE '%manual review%')
+       LIMIT 5`
+    );
+    for (const row of stuck) {
+      await query(
+        `UPDATE topup_orders SET status_message = CONCAT(IFNULL(status_message, ''), ' — STUCK: manual review required') WHERE id = ?`,
+        [row.id]
+      );
+      await sendTelegramNotification(
+        `<b>⏳ STUCK Order Needs Manual Review</b>\n🎮 ${row.game_name}\n📦 ${row.package_name}\n💰 $${row.amount}\n🔢 ${row.id}\n📋 G2Bulk: ${row.g2bulk_order_id || 'none'}\n\nProcessing for 15+ min. Check G2Bulk before retrying to avoid double-charge.`, true);
+    }
+  } catch (err) {
+    console.error('[sweeper] error:', err.message);
+  }
+}
+
 // ── Check G2Bulk order status ──────────────────────────────────────────────
 async function checkG2BulkOrderStatus(orderId) {
   const order = await queryOne(`SELECT * FROM topup_orders WHERE id = ?`, [orderId]);
@@ -557,3 +615,4 @@ module.exports = router;
 module.exports.fulfillOrder = (orderId, isPreorder = false) =>
   fulfillG2BulkOrder(orderId, isPreorder ? 'preorder_orders' : 'topup_orders');
 module.exports.checkStatus = checkG2BulkOrderStatus;
+module.exports.recoverStuckOrders = recoverStuckOrders;

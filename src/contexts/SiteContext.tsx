@@ -79,6 +79,11 @@ export interface SiteSettings {
   // Browser settings
   siteIcon: string;
   browserTitle: string;
+  // Meta & sharing (OG tags)
+  meta_title?: string;
+  meta_description?: string;
+  meta_image?: string;
+  siteDescription?: string;
   // Home Edit settings
   backgroundImage: string;
   headerImage: string;
@@ -427,6 +432,11 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           // Payment methods are now static (ABA, Wing, KHQR), skip loading from site_settings
           if (row.key === 'siteIcon') loadedSettings.siteIcon = row.value as string;
           if (row.key === 'browserTitle') loadedSettings.browserTitle = row.value as string;
+          // Meta & sharing (OG tags)
+          if (row.key === 'meta_title') loadedSettings.meta_title = row.value as string;
+          if (row.key === 'meta_description') loadedSettings.meta_description = row.value as string;
+          if (row.key === 'meta_image') loadedSettings.meta_image = row.value as string;
+          if (row.key === 'siteDescription') loadedSettings.siteDescription = row.value as string;
           // Custom fonts
           if (row.key === 'customKhmerFont') loadedSettings.customKhmerFont = row.value as string;
           if (row.key === 'customEnglishFont') loadedSettings.customEnglishFont = row.value as string;

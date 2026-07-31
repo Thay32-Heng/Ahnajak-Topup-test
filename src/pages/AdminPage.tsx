@@ -37,6 +37,7 @@ import {
   BarChart3,
   CloudUpload,
   Globe,
+  Share2,
   Search,
   Image as ImageIcon,
 } from "lucide-react";
@@ -68,6 +69,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import PackageStockBadge from "@/components/admin/PackageStockBadge";
 import DatabaseExportImport from "@/components/admin/DatabaseExportImport";
 import FontSettingsTab from "@/components/admin/FontSettingsTab";
+import MetaSettingsTab from "@/components/admin/MetaSettingsTab";
 import { useG2BulkProductStatus } from "@/hooks/useG2BulkProductStatus";
 import {
   DndContext,
@@ -568,6 +570,13 @@ const AdminPage: React.FC = () => {
               >
                 <Type className="w-4 h-4 mr-2 shrink-0" />
                 <span>Fonts</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="meta"
+                className="w-full justify-start data-[state=active]:bg-gold data-[state=active]:text-primary-foreground text-xs sm:text-sm"
+              >
+                <Share2 className="w-4 h-4 mr-2 shrink-0" />
+                <span>Meta</span>
               </TabsTrigger>
               <TabsTrigger
                 value="home-edit"
@@ -3238,6 +3247,11 @@ const AdminPage: React.FC = () => {
               {/* Font Settings */}
               <TabsContent value="fonts">
                 <FontSettingsTab />
+              </TabsContent>
+
+              {/* Meta & Sharing */}
+              <TabsContent value="meta">
+                <MetaSettingsTab />
               </TabsContent>
             </div>
           </Tabs>

@@ -152,8 +152,7 @@ app.use('/api/products/vg', vgLiveLimiter, require('./routes/vg-products.cjs'));
 app.use('/api', require('./routes/misc.cjs'));
 
 // ── Auto-migration ───────────────────────────────────────────────────────────
-const { pool } = require('./db.cjs');
-(async () => {
+const { pool } = require('./db.cjs');(async () => {
   try {
     const conn = await pool.getConnection();
     await conn.query(`CREATE TABLE IF NOT EXISTS event_banners (
@@ -203,6 +202,14 @@ const { pool } = require('./db.cjs');
     console.error('  ✗ Auto-migration failed:', err.message);
   }
 })();
+
+// ── Recovery sweeper: retry stuck 'paid' orders, fulfill due preorders,
+//    alert on stuck 'processing' (money-loss protection) ─────────────────────
+const processTopupRoutes = require('./routes/process-topup.cjs');
+setInterval(() => {
+  processTopupRoutes.recoverStuckOrders().catch(e => console.error('[sweeper]', e.message));
+}, 60 * 1000);
+setTimeout(() => processTopupRoutes.recoverStuckOrders().catch(() => {}), 5000);
 
 // ── Start server ────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
