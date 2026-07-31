@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, RefreshCw, Check, AlertTriangle, Gift, Search, Loader2, PlusCircle } from 'lucide-react';
+import { Download, RefreshCw, Check, AlertTriangle, Gift, Search, Loader2, PlusCircle, FolderOpen, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 
@@ -18,6 +18,13 @@ interface SearchResult {
   importedCategory: 'voucher' | 'gift_card' | null;
 }
 
+interface G2Category {
+  id: number;
+  title: string;
+  description: string | null;
+  product_count: number;
+}
+
 const G2BulkVGImport: React.FC = () => {
   const [importingType, setImportingType] = useState<'voucher' | 'gift_card' | null>(null);
   const [result, setResult] = useState<{ type: string; count: number } | null>(null);
@@ -26,6 +33,64 @@ const G2BulkVGImport: React.FC = () => {
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [addCategory, setAddCategory] = useState<'voucher' | 'gift_card'>('voucher');
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<G2Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<number | null>(null);
+  const [categoryTitle, setCategoryTitle] = useState<string | null>(null);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [importingAll, setImportingAll] = useState(false);
+
+  const handleSearch = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setSearching(true);
+    setActiveCategory(null);
+    setCategoryTitle(null);
+    try {
+      const { data, error } = await api.get(`/products/vg/search?q=${encodeURIComponent(searchQuery)}`);
+      if (error) throw new Error(error);
+      setResults((data as any)?.products || []);
+    } catch (err: any) {
+      toast({ title: 'Search Failed', description: err.message || 'Unknown error', variant: 'destructive' });
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, [searchQuery]);
+
+  const loadCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    try {
+      const { data, error } = await api.get('/products/vg/categories');
+      if (error) throw new Error(error);
+      setCategories((data as any)?.categories || []);
+    } catch (err: any) {
+      toast({ title: 'Failed to load categories', description: err.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  const loadCategory = useCallback(async (cat: G2Category) => {
+    setCategoryLoading(true);
+    setActiveCategory(cat.id);
+    setCategoryTitle(cat.title);
+    try {
+      const { data, error } = await api.get(`/products/vg/category/${cat.id}`);
+      if (error) throw new Error(error);
+      setResults((data as any)?.products || []);
+    } catch (err: any) {
+      toast({ title: 'Failed to load category', description: err.message || 'Unknown error', variant: 'destructive' });
+      setResults([]);
+    } finally {
+      setCategoryLoading(false);
+    }
+  }, []);
+
+  // Load the full list + categories on mount
+  useEffect(() => {
+    handleSearch();
+    loadCategories();
+  }, []);
 
   const handleImport = async (productType: 'voucher' | 'gift_card') => {
     setImportingType(productType);
@@ -51,26 +116,6 @@ const G2BulkVGImport: React.FC = () => {
     }
   };
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    setSearching(true);
-    try {
-      const { data, error } = await api.get(`/products/vg/search?q=${encodeURIComponent(searchQuery)}`);
-      if (error) throw new Error(error);
-      setResults((data as any)?.products || []);
-    } catch (err: any) {
-      toast({ title: 'Search Failed', description: err.message || 'Unknown error', variant: 'destructive' });
-      setResults([]);
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  // Load the full list on mount — type in the search box to filter
-  useEffect(() => {
-    handleSearch();
-  }, []);
-
   const handleAdd = async (id: string) => {
     setAddingId(id);
     try {
@@ -83,13 +128,47 @@ const G2BulkVGImport: React.FC = () => {
         title: 'Added!',
         description: `Imported as ${addCategory === 'voucher' ? 'Voucher' : 'Gift Card'} — manage visibility in Prices → VG tab`,
       });
-      handleSearch();
+      if (activeCategory !== null) {
+        const cat = categories.find(c => c.id === activeCategory);
+        if (cat) loadCategory(cat);
+      } else {
+        handleSearch();
+      }
     } catch (err: any) {
       toast({ title: 'Add Failed', description: err.message || 'Unknown error', variant: 'destructive' });
     } finally {
       setAddingId(null);
     }
   };
+
+  const handleImportAll = async () => {
+    if (!results || results.length === 0) return;
+    setImportingAll(true);
+    try {
+      const { data, error } = await api.post('/products/vg/import', {
+        product_type: addCategory,
+        productIds: results.map(r => r.id),
+      });
+      if (error) throw new Error(error);
+      const count = (data as any)?.imported || 0;
+      toast({
+        title: 'Category Import Complete!',
+        description: `Imported ${count} products as ${addCategory === 'voucher' ? 'Vouchers' : 'Gift Cards'}`,
+      });
+      if (activeCategory !== null) {
+        const cat = categories.find(c => c.id === activeCategory);
+        if (cat) loadCategory(cat);
+      } else {
+        handleSearch();
+      }
+    } catch (err: any) {
+      toast({ title: 'Import Failed', description: err.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setImportingAll(false);
+    }
+  };
+
+  const pendingCount = results ? results.filter(r => !r.imported).length : 0;
 
   return (
     <Card className="border-purple-500/30 bg-gradient-to-br from-purple-500/5 to-transparent">
@@ -102,11 +181,11 @@ const G2BulkVGImport: React.FC = () => {
           </Badge>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Import voucher and gift card products from G2Bulk. These appear on /get-vg page.
+          Pick a category, then add its products. Or search directly. Items appear on /get-vg page.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Search & add specific products */}
+        {/* Search */}
         <form onSubmit={handleSearch} className="space-y-2">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -114,7 +193,7 @@ const G2BulkVGImport: React.FC = () => {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search G2Bulk vouchers... (name, amount, id)"
+                placeholder="Search G2Bulk products... (name, amount, id)"
                 className="pl-9"
               />
             </div>
@@ -136,49 +215,129 @@ const G2BulkVGImport: React.FC = () => {
           </div>
         </form>
 
-        {results && (
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {results.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-3">No products found</p>
-            ) : (
-              results.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/40 border border-border">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{p.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      ${(p.amount || 0).toFixed(2)}
-                      {p.category ? <span className="text-muted-foreground/60"> · {p.category}</span> : null}
-                      {p.stock !== null && (
-                        <span className={p.stock <= 0 ? "text-red-500" : "text-muted-foreground/60"}>
-                          {" "}· stock: {p.stock}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  {p.imported ? (
-                    <Badge className="bg-green-500/10 text-green-600 border-green-500/30 whitespace-nowrap">
-                      <Check className="w-3 h-3 mr-1" />Imported
-                    </Badge>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => handleAdd(p.id)}
-                      disabled={addingId === p.id}
-                      className="bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 whitespace-nowrap"
-                    >
-                      {addingId === p.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                      ) : (
-                        <PlusCircle className="w-3.5 h-3.5 mr-1" />
-                      )}
-                      Add
-                    </Button>
+        {/* Categories (main groups) */}
+        <div>
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
+            <FolderOpen className="w-3 h-3" /> Categories
+          </p>
+          {categoriesLoading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading categories...
+            </div>
+          ) : categories.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No categories from G2Bulk</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant={activeCategory === null ? "default" : "outline"}
+                onClick={() => { setActiveCategory(null); setCategoryTitle(null); handleSearch(); }}
+              >
+                All ({results ? results.length : '-'})
+              </Button>
+              {categories.map((c) => (
+                <Button
+                  key={c.id}
+                  size="sm"
+                  variant={activeCategory === c.id ? "default" : "outline"}
+                  onClick={() => loadCategory(c)}
+                  className="max-w-[220px]"
+                >
+                  <span className="truncate">{c.title}</span>
+                  <Badge variant="secondary" className="ml-1.5 shrink-0">{c.product_count}</Badge>
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Results */}
+        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+          {(categoryLoading || searching) ? (
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-4">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+            </div>
+          ) : activeCategory !== null && categoryTitle ? (
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/30">
+              <div className="flex items-center gap-2 min-w-0">
+                <FolderOpen className="w-4 h-4 text-purple-500 shrink-0" />
+                <p className="text-sm font-semibold truncate">{categoryTitle}</p>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  ({results?.length || 0} products)
+                </span>
+              </div>
+              {pendingCount > 0 && (
+                <Button
+                  size="sm"
+                  onClick={handleImportAll}
+                  disabled={importingAll}
+                  className="bg-purple-600 hover:bg-purple-700 whitespace-nowrap ml-2"
+                >
+                  {importingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Download className="w-3.5 h-3.5 mr-1" />}
+                  Import all ({pendingCount})
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border border-border">
+              <p className="text-sm font-semibold">
+                {searchQuery ? `Results for "${searchQuery}"` : 'All products'}
+                <span className="text-xs text-muted-foreground font-normal ml-2">({results?.length || 0})</span>
+              </p>
+              {pendingCount > 0 && (
+                <Button
+                  size="sm"
+                  onClick={handleImportAll}
+                  disabled={importingAll}
+                  className="bg-purple-600 hover:bg-purple-700 whitespace-nowrap ml-2"
+                >
+                  {importingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Download className="w-3.5 h-3.5 mr-1" />}
+                  Import all ({pendingCount})
+                </Button>
+              )}
+            </div>
+          )}
+
+          {results && results.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-3">No products found</p>
+          )}
+
+          {!categoryLoading && !searching && results?.map((p) => (
+            <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/40 border border-border">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{p.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  ${(p.amount || 0).toFixed(2)}
+                  {p.category ? <span className="text-muted-foreground/60"> · {p.category}</span> : null}
+                  {p.stock !== null && (
+                    <span className={p.stock <= 0 ? "text-red-500" : "text-muted-foreground/60"}>
+                      {" "}· stock: {p.stock}
+                    </span>
                   )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
+                </p>
+              </div>
+              {p.imported ? (
+                <Badge className="bg-green-500/10 text-green-600 border-green-500/30 whitespace-nowrap">
+                  <Check className="w-3 h-3 mr-1" />Imported
+                </Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => handleAdd(p.id)}
+                  disabled={addingId === p.id}
+                  className="bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 whitespace-nowrap"
+                >
+                  {addingId === p.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                  ) : (
+                    <PlusCircle className="w-3.5 h-3.5 mr-1" />
+                  )}
+                  Add
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
 
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
@@ -227,7 +386,7 @@ const G2BulkVGImport: React.FC = () => {
         <div className="flex items-start gap-2 p-2 rounded bg-yellow-500/10 border border-yellow-500/20">
           <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-muted-foreground">
-            Imports card/voucher products from G2Bulk. Existing items with the same ID will be updated.
+            Existing items with the same ID will be updated.
             Go to <strong>Prices → Voucher & Gift Card</strong> tab to manage visibility.
           </p>
         </div>

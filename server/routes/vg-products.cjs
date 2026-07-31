@@ -52,6 +52,72 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Admin: list G2Bulk categories (main voucher/gift-card groups)
+router.get('/categories', requireAdmin, async (req, res) => {
+  try {
+    const cfg = await queryOne("SELECT * FROM api_configurations WHERE api_name = 'g2bulk' AND is_enabled = 1");
+    if (!cfg?.api_secret) return res.status(400).json({ error: 'G2Bulk not configured' });
+
+    const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': cfg.api_secret };
+    const catRes = await fetch(`${G2BULK_API_URL}/category`, { headers });
+    const catData = await catRes.json();
+
+    const categories = Array.isArray(catData.categories)
+      ? catData.categories.map(c => ({
+          id: c.id,
+          title: c.title || `Category ${c.id}`,
+          description: c.description || null,
+          image_url: c.image_url || null,
+          product_count: c.product_count || 0,
+        }))
+      : [];
+    return res.json({ categories });
+  } catch (err) {
+    console.error('[vg-products] Categories error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: products inside a G2Bulk category
+router.get('/category/:id', requireAdmin, async (req, res) => {
+  try {
+    const cfg = await queryOne("SELECT * FROM api_configurations WHERE api_name = 'g2bulk' AND is_enabled = 1");
+    if (!cfg?.api_secret) return res.status(400).json({ error: 'G2Bulk not configured' });
+
+    const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': cfg.api_secret };
+    const prodRes = await fetch(`${G2BULK_API_URL}/category/${req.params.id}`, { headers });
+    const prodData = await prodRes.json();
+    if (!prodData.products || !Array.isArray(prodData.products)) {
+      return res.json({ products: [], category_title: prodData.category_title || null });
+    }
+
+    const [rows] = await query(
+      "SELECT g2bulk_product_id, fields FROM g2bulk_products WHERE product_type = 'card'"
+    );
+    const importedMap = {};
+    for (const r of rows) {
+      importedMap[r.g2bulk_product_id] = parseFields(r.fields).category === 'voucher' ? 'voucher' : 'gift_card';
+    }
+
+    const products = prodData.products.map(p => {
+      const pid = `card_${p.id}`;
+      return {
+        id: p.id,
+        name: p.title || p.name || `Card ${p.id}`,
+        category: prodData.category_title || p.category_title || null,
+        amount: parseFloat(p.unit_price ?? p.amount) || 0,
+        stock: p.stock ?? null,
+        imported: !!importedMap[pid],
+        importedCategory: importedMap[pid] || null,
+      };
+    });
+    return res.json({ products, category_title: prodData.category_title || null });
+  } catch (err) {
+    console.error('[vg-products] Category products error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin: search G2Bulk products to add (like the game search in imports)
 router.get('/search', requireAdmin, async (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
