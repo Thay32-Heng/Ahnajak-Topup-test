@@ -142,6 +142,22 @@ router.put('/g2bulk-products/:id/price', requireAuth, requireAdmin, async (req, 
   } catch (err) { sendError(res, err, 'PUT /g2bulk-products/:id/price'); }
 });
 
+// Update g2bulk product icon (stored in fields.image_url — used on the shop page)
+router.put('/g2bulk-products/:id/image', requireAuth, requireAdmin, async (req, res) => {
+  const { image } = req.body;
+  if (typeof image !== 'string') return res.status(400).json({ error: 'Invalid image' });
+  try {
+    const row = await queryOne('SELECT fields FROM g2bulk_products WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: 'Product not found' });
+    let fields = row.fields;
+    if (typeof fields === 'string') { try { fields = JSON.parse(fields); } catch { fields = {}; } }
+    if (!fields || typeof fields !== 'object') fields = {};
+    await query('UPDATE g2bulk_products SET fields = ? WHERE id = ?',
+      [JSON.stringify({ ...fields, image_url: image || null }), req.params.id]);
+    res.json({ success: true });
+  } catch (err) { sendError(res, err, 'PUT /g2bulk-products/:id/image'); }
+});
+
 // Update package markup — recalculates price from G2Bulk cost + markup %
 router.put('/packages/:id/markup', requireAuth, requireAdmin, async (req, res) => {
   const { price_markup_percent } = req.body;

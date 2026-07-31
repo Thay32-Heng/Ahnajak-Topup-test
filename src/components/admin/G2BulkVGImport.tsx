@@ -37,6 +37,14 @@ interface VgGameDraft {
   cover_image: string;
 }
 
+interface VgProductRow {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  image?: string | null;
+}
+
 const G2BulkVGImport: React.FC = () => {
   const [categories, setCategories] = useState<G2Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -51,6 +59,54 @@ const G2BulkVGImport: React.FC = () => {
   const [edits, setEdits] = useState<Record<string, VgGameDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [categoryProducts, setCategoryProducts] = useState<Record<string, VgProductRow[]>>({});
+  const [productsLoadingId, setProductsLoadingId] = useState<string | null>(null);
+  const [productImgDrafts, setProductImgDrafts] = useState<Record<string, string>>({});
+  const [productSavingId, setProductSavingId] = useState<string | null>(null);
+
+  // Load the product list of the category being edited (for icon editing)
+  useEffect(() => {
+    if (!editingId) return;
+    const g = vgGames.find(x => x.id === editingId);
+    if (!g) return;
+    let cancelled = false;
+    setProductsLoadingId(editingId);
+    api.get(`/products/vg/${g.slug}`)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) throw new Error(error.message || String(error));
+        const d = data as any;
+        setCategoryProducts(prev => ({ ...prev, [g.id]: Array.isArray(d?.products) ? d.products as VgProductRow[] : [] }));
+      })
+      .catch((err: any) => {
+        if (!cancelled) toast({ title: 'Failed to load products', description: err.message || 'Unknown error', variant: 'destructive' });
+      })
+      .finally(() => { if (!cancelled) setProductsLoadingId(null); });
+    return () => { cancelled = true; };
+  }, [editingId, vgGames]);
+
+  const handleSaveProductImage = async (productId: string, image: string) => {
+    setProductSavingId(productId);
+    try {
+      const { error } = await api.put(`/admin/g2bulk-products/${productId}/image`, { image: image.trim() || null });
+      if (error) throw new Error(error.message || String(error));
+      toast({ title: 'Product icon updated!' });
+      setProductImgDrafts(prev => { const next = { ...prev }; delete next[productId]; return next; });
+      // Refresh the loaded list so the thumbnail updates
+      const g = vgGames.find(x => x.id === editingId);
+      if (g) {
+        const { data } = await api.get(`/products/vg/${g.slug}`);
+        const d = data as any;
+        if (Array.isArray(d?.products)) {
+          setCategoryProducts(prev => ({ ...prev, [g.id]: d.products as VgProductRow[] }));
+        }
+      }
+    } catch (err: any) {
+      toast({ title: 'Failed to update icon', description: err.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setProductSavingId(null);
+    }
+  };
 
   const loadCategories = useCallback(async () => {
     setCategoriesLoading(true);
@@ -374,7 +430,8 @@ const G2BulkVGImport: React.FC = () => {
             </Badge>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Edit the icon, name and URL slug of each imported category. Shown on the homepage — click opens its shop page.
+            Edit the icon, name and URL slug of each imported category, and the icon of each product inside it.
+            Shown on the homepage — click opens its shop page.
           </p>
         </CardHeader>
         <CardContent>
@@ -433,6 +490,83 @@ const G2BulkVGImport: React.FC = () => {
                             className="h-8 text-sm border-gold/30"
                           />
                         </div>
+
+                        {/* Products in this category — edit each product icon */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[11px] text-muted-foreground font-medium">
+                              Products in this category
+                            </label>
+                            {productsLoadingId === g.id && (
+                              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
+                          {productsLoadingId === g.id ? null : (categoryProducts[g.id] || []).length === 0 ? (
+                            <p className="text-[11px] text-muted-foreground text-center py-2 rounded-lg bg-muted/40">
+                              No products in this category yet
+                            </p>
+                          ) : (
+                            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                              {(categoryProducts[g.id] || []).map((p) => {
+                                const draftImg = productImgDrafts[p.id];
+                                const editingImg = productImgDrafts[p.id] !== undefined;
+                                const pImg = editingImg ? draftImg : (p.image || '');
+                                return (
+                                  <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 border border-border">
+                                    <img
+                                      src={resolveIconUrl(pImg) || '/placeholder.svg'}
+                                      alt={p.name}
+                                      className="w-8 h-8 rounded object-contain bg-card shrink-0 border border-border"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium truncate">{p.name}</p>
+                                      <p className="text-[10px] text-muted-foreground">${Number(p.price).toFixed(2)}</p>
+                                    </div>
+                                    {editingImg ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="w-14">
+                                          <ImageUpload
+                                            value={pImg}
+                                            onChange={(url) => setProductImgDrafts(prev => ({ ...prev, [p.id]: url }))}
+                                            folder="games"
+                                            aspectRatio="square"
+                                            placeholder="Icon"
+                                          />
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 px-2 text-xs bg-gold hover:bg-gold-dark text-primary-foreground"
+                                          onClick={() => handleSaveProductImage(p.id, pImg)}
+                                          disabled={productSavingId === p.id}
+                                        >
+                                          {productSavingId === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 px-2"
+                                          onClick={() => setProductImgDrafts(prev => { const next = { ...prev }; delete next[p.id]; return next; })}
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs shrink-0"
+                                        onClick={() => setProductImgDrafts(prev => ({ ...prev, [p.id]: p.image || '' }))}
+                                      >
+                                        <Edit3 className="w-3 h-3 mr-1" /> Icon
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
                         <div className="flex gap-2">
                           <Button
                             size="sm"
