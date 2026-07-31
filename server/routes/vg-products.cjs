@@ -84,7 +84,7 @@ router.get('/search', requireAdmin, async (req, res) => {
       importedMap[r.g2bulk_product_id] = parseFields(r.fields).category === 'voucher' ? 'voucher' : 'gift_card';
     }
 
-    const products = list.slice(0, 50).map(p => {
+    const products = list.slice(0, 200).map(p => {
       const pid = `card_${p.id}`;
       return {
         id: p.id,

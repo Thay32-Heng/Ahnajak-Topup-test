@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +37,7 @@ const G2BulkVGImport: React.FC = () => {
         title: 'Import Complete!',
         description: `Imported ${count} ${productType === 'voucher' ? 'voucher' : 'gift card'} products from G2Bulk`,
       });
+      handleSearch();
     } catch (err: any) {
       toast({
         title: 'Import Failed',
@@ -62,6 +63,11 @@ const G2BulkVGImport: React.FC = () => {
       setSearching(false);
     }
   };
+
+  // Load the full list on mount — type in the search box to filter
+  useEffect(() => {
+    handleSearch();
+  }, []);
 
   const handleAdd = async (id: string) => {
     setAddingId(id);
