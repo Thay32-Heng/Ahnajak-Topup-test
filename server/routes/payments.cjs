@@ -126,7 +126,7 @@ async function handleCreatePayment(req, res) {
     if (!refreshed?.config?.secret_key) return res.status(500).json({ error: 'Gateway not configured' });
   }
   const cfg = gatewayCache['khqrcc'].config;
-  const success_url = req.body.success_url || `https://kesortopup.cam/success`;
+  const success_url = req.body.success_url || `https://woosaastore.com/success`;
   const plainHash = cfg.secret_key + orderId + amount + success_url + remark;
   const hash = crypto.createHash('sha1').update(plainHash).digest('hex');
   const params = new URLSearchParams({
