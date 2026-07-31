@@ -173,9 +173,9 @@ router.post('/import', requireAdmin, async (req, res) => {
       const fields = { category: product_type, category_title: prod.category_title || null, stock: prod.stock ?? null, image_url: prod.image_url || null };
       await query(
         `INSERT INTO g2bulk_products (id, g2bulk_type_id, g2bulk_product_id, game_name, product_name, denomination, price, currency, fields, is_active, product_type)
-         VALUES (UUID(), '', ?, ?, ?, ?, 'USD', ?, 1, 'card')
+         VALUES (UUID(), '', ?, ?, ?, ?, ?, 'USD', ?, 1, 'card')
          ON DUPLICATE KEY UPDATE game_name = VALUES(game_name), product_name = VALUES(product_name), denomination = VALUES(denomination), price = VALUES(price), fields = VALUES(fields), is_active = 1, product_type = 'card'`,
-        [`card_${prod.id}`, pName, pName, amount, JSON.stringify(fields)]
+        [`card_${prod.id}`, pName, pName, amount, amount, JSON.stringify(fields)]
       );
       imported++;
       if (prod.category_id != null && prod.category_title) {
