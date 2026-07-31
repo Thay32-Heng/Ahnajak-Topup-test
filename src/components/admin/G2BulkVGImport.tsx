@@ -29,7 +29,7 @@ const G2BulkVGImport: React.FC = () => {
     setCategoriesLoading(true);
     try {
       const { data, error } = await api.get(`/products/vg/categories?q=${encodeURIComponent(searchQuery)}`);
-      if (error) throw new Error(error);
+      if (error) throw new Error(error.message || String(error));
       setCategories((data as any)?.categories || []);
     } catch (err: any) {
       toast({ title: 'Failed to load categories', description: err.message || 'Unknown error', variant: 'destructive' });
@@ -54,12 +54,12 @@ const G2BulkVGImport: React.FC = () => {
         product_type: addCategory,
         categoryId: cat.id,
       });
-      if (error) throw new Error(error);
+      if (error) throw new Error(error.message || String(error));
       const count = (data as any)?.imported || 0;
       setResult({ type: addCategory, count });
       toast({
         title: 'Category Imported!',
-        description: `Imported ${count} products from "${cat.title}" as ${addCategory === 'voucher' ? 'Vouchers' : 'Gift Cards'}`,
+        description: (data as any)?.message || `Imported ${count} products from "${cat.title}" as ${addCategory === 'voucher' ? 'Vouchers' : 'Gift Cards'}`,
       });
       loadCategories();
     } catch (err: any) {
@@ -75,12 +75,12 @@ const G2BulkVGImport: React.FC = () => {
     setResult(null);
     try {
       const { data, error } = await api.post('/products/vg/import', { product_type: productType });
-      if (error) throw new Error(error);
+      if (error) throw new Error(error.message || String(error));
       const count = (data as any)?.imported || 0;
       setResult({ type: productType, count });
       toast({
         title: 'Import Complete!',
-        description: `Imported ${count} ${productType === 'voucher' ? 'voucher' : 'gift card'} products from G2Bulk`,
+        description: (data as any)?.message || `Imported ${count} ${productType === 'voucher' ? 'voucher' : 'gift card'} products from G2Bulk`,
       });
       loadCategories();
     } catch (err: any) {
@@ -105,7 +105,8 @@ const G2BulkVGImport: React.FC = () => {
           </Badge>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Pick a category and click Import — every product inside it is added. Search filters the categories.
+          Pick a category and click Import — every product inside it is added, and the category becomes a
+          <strong> game</strong> you can edit (icon, name, slug) in the <strong>Games</strong> tab.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">

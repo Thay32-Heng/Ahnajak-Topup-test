@@ -53,7 +53,8 @@ async function request<T = any>(
 
     if (!res.ok) {
       const errorBody = isJson ? await res.json() : await res.text();
-      const message = typeof errorBody === 'string' ? errorBody : (errorBody.error || errorBody.message || `HTTP ${res.status}`);
+      const raw = typeof errorBody === 'string' ? errorBody : (errorBody.error || errorBody.message || `HTTP ${res.status}`);
+      const message = typeof raw === 'string' ? raw : (typeof raw?.message === 'string' ? raw.message : JSON.stringify(raw));
       return { data: null, error: { message, code: String(res.status) } };
     }
 

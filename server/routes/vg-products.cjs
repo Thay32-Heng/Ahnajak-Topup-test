@@ -20,6 +20,47 @@ function parseFields(fields) {
   return fields || {};
 }
 
+function slugify(s) {
+  return String(s || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'category';
+}
+
+function parseTags(raw) {
+  try { return Array.isArray(JSON.parse(raw || '[]')) ? JSON.parse(raw) : []; } catch { return []; }
+}
+
+/**
+ * Upsert a `games` row for a G2Bulk category so it can be styled/renamed
+ * in the admin Games tab (icon, name, slug). Tagged `["vg"]` so customer
+ * game lists (Index) can hide it. Never renames or re-slugs an existing game.
+ */
+async function upsertCategoryGame(categoryId, title, imageUrl) {
+  const cid = String(categoryId);
+  const existing = await queryOne('SELECT id, tags FROM games WHERE g2bulk_category_id = ?', [cid]);
+  if (existing) {
+    const tags = parseTags(existing.tags);
+    if (!tags.includes('vg')) tags.push('vg');
+    await query(
+      'UPDATE games SET g2bulk_category_id = ?, image = COALESCE(?, image), tags = ? WHERE id = ?',
+      [cid, imageUrl || null, JSON.stringify(tags), existing.id]
+    );
+    return false;
+  }
+  let slug = slugify(title);
+  const [dup] = await query('SELECT id FROM games WHERE slug = ?', [slug]);
+  if (dup.length > 0) slug = `${slug}-${cid}`;
+  await query(
+    `INSERT INTO games (id, name, slug, image, description, sort_order, g2bulk_category_id, tags)
+     VALUES (UUID(), ?, ?, ?, NULL, 999, ?, ?)`,
+    [title, slug, imageUrl || null, cid, JSON.stringify(['vg'])]
+  );
+  return true;
+}
+
 // Public: list active voucher & gift card products
 router.get('/', async (req, res) => {
   try {
@@ -122,6 +163,8 @@ router.post('/import', requireAdmin, async (req, res) => {
     }
 
     let imported = 0;
+    let gamesCreated = 0;
+    const seenCategories = new Map(); // category_id -> { title, image }
     for (const prod of prodData.products) {
       if (onlyIds && !onlyIds.has(String(prod.id))) continue;
       // G2Bulk products return: { id, title, description, category_id, category_title, unit_price, image_url, stock }
@@ -135,9 +178,27 @@ router.post('/import', requireAdmin, async (req, res) => {
         [`card_${prod.id}`, pName, pName, amount, JSON.stringify(fields)]
       );
       imported++;
+      if (prod.category_id != null && prod.category_title) {
+        if (!seenCategories.has(String(prod.category_id))) {
+          seenCategories.set(String(prod.category_id), { title: prod.category_title, image: prod.image_url || null });
+        }
+      }
     }
 
-    return res.json({ success: true, imported });
+    // Import each category as an editable game (icon/name/slug in Games tab)
+    for (const [cid, cat] of seenCategories) {
+      if (await upsertCategoryGame(cid, cat.title, cat.image)) gamesCreated++;
+    }
+
+    return res.json({
+      success: true,
+      imported,
+      games: seenCategories.size,
+      games_created: gamesCreated,
+      message: seenCategories.size
+        ? `${imported} products · ${seenCategories.size} categor${seenCategories.size !== 1 ? 'ies' : 'y'} added as game${seenCategories.size !== 1 ? 's' : ''}`
+        : null,
+    });
   } catch (err) {
     console.error('[vg-products] Import error:', err);
     return res.status(500).json({ error: err.message });
