@@ -151,6 +151,17 @@ const { pool } = require('./db.cjs');
       created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
       confirmed_at      DATETIME     DEFAULT NULL
     )`);
+    // Ensure card_codes column exists (Voucher & Gift Card delivery)
+    for (const table of ['topup_orders', 'preorder_orders']) {
+      const [cols] = await conn.query(
+        `SELECT COUNT(*) AS n FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = ? AND column_name = 'card_codes'`, [table]
+      );
+      if (!cols[0]?.n) {
+        await conn.query(`ALTER TABLE ${table} ADD COLUMN card_codes LONGTEXT NULL`);
+        console.log(`  ✓ Auto-migration: added card_codes to ${table}`);
+      }
+    }
     conn.release();
     console.log('  ✓ Auto-migration: event_banners + telegram_auth_codes tables ready');
   } catch (err) {

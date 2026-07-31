@@ -103,7 +103,12 @@ async function fulfillCardOrder(orderId, quantity, order, apiKey, tableName) {
     const result = await response.json();
     if (result.success) {
       allOrderIds.push(String(result.order_id || result.transaction_id));
-      const items = result.delivery_items || [];
+      const rawItems = result.delivery_items || result.card_codes || result.codes || [];
+      const items = Array.isArray(rawItems)
+        ? rawItems
+        : (typeof rawItems === 'string' && rawItems.trim()
+          ? rawItems.split(',').map(s => s.trim())
+          : []);
       allDeliveryItems.push(...items.map(item => ({ code: item, serial: '', expire: '' })));
     } else {
       lastError = result.message || result.detail?.message || 'Card purchase failed';
@@ -112,11 +117,18 @@ async function fulfillCardOrder(orderId, quantity, order, apiKey, tableName) {
 
   if (allOrderIds.length > 0) {
     const g2bulkOrderIdStr = allOrderIds.join(',');
-    const status = allOrderIds.length === quantity ? 'completed' : 'partial';
-    const statusMessage = `G2Bulk Card Order: ${g2bulkOrderIdStr}. ${allDeliveryItems.length} code(s) delivered (${allOrderIds.length}/${quantity} succeeded).`;
+    // MONEY-LOSS GUARD: if G2Bulk confirmed the order but returned no codes,
+    // never mark completed — flag for manual review so codes can be recovered.
+    const hasAllCodes = allDeliveryItems.length >= quantity;
+    let status = (hasAllCodes && allOrderIds.length === quantity) ? 'completed' : 'partial';
+    let statusMessage = `G2Bulk Card Order: ${g2bulkOrderIdStr}. ${allDeliveryItems.length} code(s) delivered (${allOrderIds.length}/${quantity} succeeded).`;
+    if (allDeliveryItems.length === 0) {
+      status = 'pending_manual';
+      statusMessage = `G2Bulk order ${g2bulkOrderIdStr} confirmed but returned NO codes. Manual recovery required.`;
+    }
     await query(`UPDATE ${tableName} SET g2bulk_order_id = ?, status = ?, status_message = ?, card_codes = ? WHERE id = ?`,
       [g2bulkOrderIdStr, status, statusMessage, JSON.stringify(allDeliveryItems), orderId]);
-    await sendTelegramNotification(`<b>Card Order ${status === 'completed' ? 'Completed' : 'Partial'}</b>\n🎮 ${order.game_name}\n📦 ${order.package_name} (×${quantity})\n👤 ${order.player_id}\n💰 $${order.amount}\n🔢 ${orderId}\n📋 ${g2bulkOrderIdStr}\n🎫 ${allDeliveryItems.length} codes`);
+    await sendTelegramNotification(`<b>Card Order ${status === 'completed' ? 'Completed' : status === 'pending_manual' ? '⚠️ MANUAL REVIEW NEEDED' : 'Partial'}</b>\n🎮 ${order.game_name}\n📦 ${order.package_name} (×${quantity})\n👤 ${order.player_id}\n💰 $${order.amount}\n🔢 ${orderId}\n📋 ${g2bulkOrderIdStr}\n🎫 ${allDeliveryItems.length} codes`, status !== 'completed');
     return { success: true, g2bulk_order_id: g2bulkOrderIdStr, status, cards: allDeliveryItems };
   } else {
     await query(`UPDATE ${tableName} SET status = ?, status_message = ? WHERE id = ?`, ['failed', `G2Bulk Card Error: ${lastError}`, orderId]);
@@ -452,19 +464,41 @@ router.post('/', optionalAuth, async (req, res) => {
     // Create order (default action)
     const { game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, is_preorder, scheduled_fulfill_at } = body;
 
-    if (!game_name || !package_name || !player_id) {
+    // Voucher/Gift Card orders have no player_id — detect card products
+    const isCardProduct = !!g2bulk_product_id && String(g2bulk_product_id).startsWith('card_');
+
+    if (!game_name || !package_name) {
       return res.status(400).json({ success: false, error: 'game_name, package_name, and player_id are required' });
     }
-    if (String(player_id).length > 100) {
+    if (!isCardProduct && !player_id) {
+      return res.status(400).json({ success: false, error: 'game_name, package_name, and player_id are required' });
+    }
+    if (player_id && String(player_id).length > 100) {
       return res.status(400).json({ success: false, error: 'player_id too long' });
     }
 
 
-    const authoritativePackage = await resolveAuthoritativePackage({
-      gameName: game_name, packageName: package_name,
-      g2bulkProductId: g2bulk_product_id, isPreorder: is_preorder === true,
-      requestedAmount: Number(amount),
-    });
+    let authoritativePackage = null;
+    if (isCardProduct) {
+      // Card/VG products: validate price authoritatively against g2bulk_products table
+      const gp = await queryOne(
+        'SELECT product_name, price, is_active FROM g2bulk_products WHERE g2bulk_product_id = ?',
+        [g2bulk_product_id]
+      );
+      if (!gp || gp.is_active !== 1) {
+        return res.status(400).json({ success: false, error: 'Invalid card product selection' });
+      }
+      authoritativePackage = {
+        id: null, name: gp.product_name, price: parseFloat(gp.price),
+        g2bulkProductId: g2bulk_product_id,
+      };
+    } else {
+      authoritativePackage = await resolveAuthoritativePackage({
+        gameName: game_name, packageName: package_name,
+        g2bulkProductId: g2bulk_product_id, isPreorder: is_preorder === true,
+        requestedAmount: Number(amount),
+      });
+    }
 
     if (!authoritativePackage) {
       return res.status(400).json({ success: false, error: 'Invalid package selection' });
@@ -484,13 +518,13 @@ router.post('/', optionalAuth, async (req, res) => {
       await query(
         `INSERT INTO ${tableName} (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status, scheduled_fulfill_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, req.user?.id || null, game_name, package_name, player_id, server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus, scheduled_fulfill_at]
+        [orderId, req.user?.id || null, game_name, package_name, player_id || '', server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus, scheduled_fulfill_at]
       );
     } else {
       await query(
         `INSERT INTO ${tableName} (id, user_id, game_name, package_name, player_id, server_id, player_name, amount, currency, payment_method, g2bulk_product_id, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, req.user?.id || null, game_name, package_name, player_id, server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus]
+        [orderId, req.user?.id || null, game_name, package_name, player_id || '', server_id || null, player_name || null, authoritativeAmount, currency || 'USD', payment_method || null, authoritativePackage.g2bulkProductId || null, defaultStatus]
       );
     }
 

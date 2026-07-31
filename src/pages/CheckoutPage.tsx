@@ -251,8 +251,12 @@ const CheckoutPage = () => {
                       <h3 className="font-semibold text-sm truncate">{item.gameName}</h3>
                       <p className="text-xs text-muted-foreground truncate">{item.packageName}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        👤 {item.playerName} ({item.playerId}
-                        {item.serverId ? ` - ${item.serverId}` : ""})
+                        {item.playerId ? (
+                          <>👤 {item.playerName} ({item.playerId}
+                          {item.serverId ? ` - ${item.serverId}` : ""})</>
+                        ) : (
+                          <>🎁 {item.gameName === 'Gift Card' ? 'Gift Card' : 'Voucher'} — instant delivery</>
+                        )}
                       </p>
                     </div>
                     <Badge variant="secondary" className="flex-shrink-0">
