@@ -250,6 +250,50 @@ router.post('/markup', requireAdmin, async (req, res) => {
   }
 });
 
+// Public: live G2Bulk stock + prices for one category (5s polling on the shop page)
+const liveCatCache = new Map(); // categoryId -> { data, fetchedAt }
+function normalizeStock(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw === 'number') return raw > 0 ? Math.floor(raw) : 0;
+  const s = String(raw).toLowerCase();
+  if (s.includes('out') || s.includes('sold') || s.includes('0')) return 0;
+  if (s.includes('in') || s.includes('available')) return null;
+  return null;
+}
+router.get('/:slug/live', async (req, res) => {
+  try {
+    const game = await queryOne('SELECT g2bulk_category_id FROM games WHERE slug = ?', [req.params.slug]);
+    if (!game?.g2bulk_category_id) return res.status(404).json({ error: 'Category not found' });
+    const catId = String(game.g2bulk_category_id);
+    const now = Date.now();
+    const cached = liveCatCache.get(catId);
+    if (cached && now - cached.fetchedAt < 10000) {
+      return res.json({ ...cached.data, updated_at: new Date().toISOString() });
+    }
+    const cfg = await queryOne("SELECT * FROM api_configurations WHERE api_name = 'g2bulk' AND is_enabled = 1");
+    if (!cfg?.api_secret) return res.json({ stock: {}, prices: {}, error: 'G2Bulk not configured' });
+    const prodRes = await fetch(`${G2BULK_API_URL}/category/${catId}`, {
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': cfg.api_secret },
+    });
+    if (!prodRes.ok) return res.json({ stock: {}, prices: {}, error: `G2Bulk HTTP ${prodRes.status}` });
+    const data = await prodRes.json();
+    const stock = {};
+    const prices = {};
+    for (const prod of (Array.isArray(data.products) ? data.products : [])) {
+      const key = `card_${prod.id}`;
+      stock[key] = normalizeStock(prod.stock);
+      const unitPrice = parseFloat(prod.unit_price ?? prod.amount);
+      if (Number.isFinite(unitPrice) && unitPrice > 0) prices[key] = Math.round(unitPrice * 100) / 100;
+    }
+    const result = { stock, prices };
+    liveCatCache.set(catId, { data: result, fetchedAt: Date.now() });
+    return res.json({ ...result, updated_at: new Date().toISOString() });
+  } catch (err) {
+    console.error('[vg-products] Live stock error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Public: single VG category game by slug (game header + its products)
 router.get('/:slug', async (req, res) => {
   try {

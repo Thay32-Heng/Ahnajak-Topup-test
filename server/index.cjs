@@ -70,6 +70,14 @@ const verifyGameLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+// Public VG shop pages poll live G2Bulk stock every 5s — allow a few visitors per shared IP
+const vgLiveLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 240,
+  message: { error: 'Too many requests — please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
@@ -138,7 +146,7 @@ app.use('/api', require('./routes/image-search.cjs'));
 app.use('/api/auth', require('./routes/telegram-bot-auth.cjs'));
 
 // Voucher & Gift Card products
-app.use('/api/products/vg', require('./routes/vg-products.cjs'));
+app.use('/api/products/vg', vgLiveLimiter, require('./routes/vg-products.cjs'));
 
 // Misc (edge function aliases: get-ikhode-public-config, khqrcc-payment, etc.)
 app.use('/api', require('./routes/misc.cjs'));

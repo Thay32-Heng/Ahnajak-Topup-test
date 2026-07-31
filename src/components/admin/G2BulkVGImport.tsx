@@ -23,6 +23,7 @@ interface VgGame {
   name: string;
   slug: string;
   image: string | null;
+  cover_image: string | null;
   description: string | null;
   g2bulk_category_id: string | null;
   tags?: string[];
@@ -33,6 +34,7 @@ interface VgGameDraft {
   name: string;
   slug: string;
   image: string;
+  cover_image: string;
 }
 
 const G2BulkVGImport: React.FC = () => {
@@ -159,11 +161,11 @@ const G2BulkVGImport: React.FC = () => {
   };
 
   const draftOf = (g: VgGame): VgGameDraft => {
-    return edits[g.id] || { id: g.id, name: g.name, slug: g.slug, image: g.image || '' };
+    return edits[g.id] || { id: g.id, name: g.name, slug: g.slug, image: g.image || '', cover_image: g.cover_image || '' };
   };
 
   const startEdit = (g: VgGame) => {
-    setEdits((prev) => ({ ...prev, [g.id]: { id: g.id, name: g.name, slug: g.slug, image: g.image || '' } }));
+    setEdits((prev) => ({ ...prev, [g.id]: { id: g.id, name: g.name, slug: g.slug, image: g.image || '', cover_image: g.cover_image || '' } }));
     setEditingId(g.id);
   };
 
@@ -188,6 +190,7 @@ const G2BulkVGImport: React.FC = () => {
         name: draft.name.trim(),
         slug: draft.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || undefined,
         image: draft.image || null,
+        cover_image: draft.cover_image || null,
       });
       if (error) throw new Error(error.message || String(error));
       toast({ title: 'Category updated!' });
@@ -397,6 +400,16 @@ const G2BulkVGImport: React.FC = () => {
                   >
                     {editing ? (
                       <div className="p-3 space-y-3">
+                        <div>
+                          <label className="text-[11px] text-muted-foreground mb-1 block">Cover Image (wide banner)</label>
+                          <ImageUpload
+                            value={draft.cover_image}
+                            onChange={(url) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, cover_image: url } }))}
+                            folder="games"
+                            aspectRatio="wide"
+                            placeholder="Cover"
+                          />
+                        </div>
                         <ImageUpload
                           value={draft.image}
                           onChange={(url) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, image: url } }))}
