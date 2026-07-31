@@ -62,6 +62,14 @@ const pollLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+// Game-ID verification proxies to the paid G2Bulk API — protect the quota
+const verifyGameLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: 'Too many requests — please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
@@ -117,7 +125,7 @@ app.use('/api/admin', require('./routes/api-configs.cjs'));
 // Each replaces a Supabase edge function with the same API contract
 
 app.use('/api/process-topup', financialLimiter, require('./routes/process-topup.cjs'));
-app.use('/api/verify-game-id', require('./routes/verify-game.cjs'));
+app.use('/api/verify-game-id', verifyGameLimiter, require('./routes/verify-game.cjs'));
 app.use('/api/g2bulk-api', require('./routes/g2bulk.cjs'));
 app.use('/api/ahnajak-khqr', pollLimiter, require('./routes/ahnajak-khqr.cjs'));
 app.use('/api/ikhode-payment', financialLimiter, require('./routes/ikhode.cjs'));

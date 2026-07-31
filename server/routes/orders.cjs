@@ -52,10 +52,12 @@ router.get('/:id', optionalAuth, async (req, res) => {
   } catch (err) { sendError(res, err, 'GET /orders/:id'); }
 });
 
-// Create order (auth required)
+// Create order (auth optional — guests allowed)
 router.post('/', optionalAuth, async (req, res) => {
   const b = req.body;
-  if (!b.player_id || String(b.player_id).length > 100) {
+  // Voucher/Gift Card orders have no player_id
+  const isCardProduct = !!b.g2bulk_product_id && String(b.g2bulk_product_id).startsWith('card_');
+  if (!isCardProduct && (!b.player_id || String(b.player_id).length > 100)) {
     return res.status(400).json({ error: 'Invalid or too long player_id' });
   }
   const id = uuid();
@@ -64,7 +66,17 @@ router.post('/', optionalAuth, async (req, res) => {
     let dbPrice = null;
     let pkg = null;
     
-    if (b.g2bulk_product_id && b.game_name && b.package_name) {
+    if (isCardProduct) {
+      // Card/VG products: validate authoritatively against g2bulk_products table
+      const gp = await queryOne(
+        'SELECT price, is_active FROM g2bulk_products WHERE g2bulk_product_id = ?',
+        [b.g2bulk_product_id]
+      );
+      if (!gp || gp.is_active !== 1 || Number(gp.price) <= 0) {
+        return res.status(400).json({ error: 'Invalid card product selection' });
+      }
+      dbPrice = parseFloat(gp.price);
+    } else if (b.g2bulk_product_id && b.game_name && b.package_name) {
       pkg = await queryOne(
         'SELECT p.price FROM packages p JOIN games g ON g.id = p.game_id WHERE p.g2bulk_product_id = ? AND g.name = ? AND p.name = ?',
         [b.g2bulk_product_id, b.game_name, b.package_name]

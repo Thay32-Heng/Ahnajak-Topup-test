@@ -123,8 +123,14 @@ router.post('/bot-auth/webhook', async (req, res) => {
 
 // Telegram bot webhook — receives updates directly from Telegram
 // Set this as your bot's webhook via:
-//   curl "https://api.telegram.org/bot<token>/setWebhook?url=https://yourdomain.com/api/auth/telegram-webhook"
+//   curl "https://api.telegram.org/bot<token>/setWebhook?url=https://yourdomain.com/api/auth/telegram-webhook&secret_token=<token>"
 router.post('/telegram-webhook', async (req, res) => {
+  // Verify the webhook secret token when configured (set via setWebhook secret_token)
+  const expected = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (expected) {
+    const provided = req.headers['x-telegram-bot-api-secret-token'] || '';
+    if (provided !== expected) return res.status(401).json({ ok: false, error: 'Invalid secret token' });
+  }
   const update = req.body;
   // Acknowledge immediately (Telegram resends if we don't respond in time)
   res.json({ ok: true });
