@@ -320,7 +320,7 @@ const GetVgPage: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur border border-white/30 text-[10px] sm:text-xs font-semibold text-white">
                     <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", liveError ? "bg-amber-400" : "bg-emerald-400")} />
-                    {liveError ? 'Live feed offline' : 'Live stock & price from G2Bulk'}
+                    {liveError ? 'Live feed offline' : `Live stock & price from ${settings.siteName}`}
                   </span>
                   {liveUpdatedAt && !liveError && (
                     <span className="px-2.5 py-1 rounded-full bg-white/10 backdrop-blur border border-white/20 text-[10px] sm:text-xs text-white/80">
@@ -452,6 +452,18 @@ const GetVgPage: React.FC = () => {
                         <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] text-muted-foreground">
                           <span className="w-1 h-1 rounded-full bg-emerald-500" />
                           G2Bulk live ${livePrice.toFixed(2)}
+                        </span>
+                      )}
+                      {typeof stock === 'number' && stock > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                          {stock} in stock
+                        </span>
+                      )}
+                      {stock === 0 && (
+                        <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-red-500">
+                          <span className="w-1 h-1 rounded-full bg-red-500" />
+                          Out of stock
                         </span>
                       )}
                     </div>

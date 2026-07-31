@@ -255,9 +255,15 @@ const liveCatCache = new Map(); // categoryId -> { data, fetchedAt }
 function normalizeStock(raw) {
   if (raw === null || raw === undefined || raw === '') return null;
   if (typeof raw === 'number') return raw > 0 ? Math.floor(raw) : 0;
-  const s = String(raw).toLowerCase();
-  if (s.includes('out') || s.includes('sold') || s.includes('0')) return 0;
-  if (s.includes('in') || s.includes('available')) return null;
+  const s = String(raw).toLowerCase().trim();
+  if (!s) return null;
+  const digits = s.match(/\d+/);
+  const numeric = digits ? Math.floor(Number(digits[0])) : null;
+  if (s.includes('out') || s.includes('sold') || s.includes('unavailable') || s.includes('empty') || s.includes('none') || s.includes('no stock')) {
+    return numeric ? numeric : 0;
+  }
+  if (numeric !== null) return Math.max(0, numeric);
+  if (s.includes('in') || s.includes('available') || s.includes('stock')) return null;
   return null;
 }
 router.get('/:slug/live', async (req, res) => {
