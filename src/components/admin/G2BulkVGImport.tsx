@@ -11,9 +11,11 @@ import api from '@/lib/api';
 interface SearchResult {
   id: string;
   name: string;
+  category: string | null;
   amount: number;
+  stock: number | null;
   imported: boolean;
-  category: 'voucher' | 'gift_card' | null;
+  importedCategory: 'voucher' | 'gift_card' | null;
 }
 
 const G2BulkVGImport: React.FC = () => {
@@ -143,8 +145,14 @@ const G2BulkVGImport: React.FC = () => {
                 <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/40 border border-border">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ${(p.amount || 0).toFixed(2)} <span className="text-muted-foreground/60">· #{p.id}</span>
+                    <p className="text-xs text-muted-foreground truncate">
+                      ${(p.amount || 0).toFixed(2)}
+                      {p.category ? <span className="text-muted-foreground/60"> · {p.category}</span> : null}
+                      {p.stock !== null && (
+                        <span className={p.stock <= 0 ? "text-red-500" : "text-muted-foreground/60"}>
+                          {" "}· stock: {p.stock}
+                        </span>
+                      )}
                     </p>
                   </div>
                   {p.imported ? (

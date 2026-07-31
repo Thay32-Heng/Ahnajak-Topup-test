@@ -39,6 +39,7 @@ router.get('/', async (req, res) => {
         price: parseFloat(r.price) || 0,
         currency: r.currency || 'USD',
         product_type: fields.category === 'voucher' ? 'voucher' : 'gift_card',
+        image: fields.image_url || null,
         g2bulk_product_id: r.g2bulk_product_id,
         g2bulk_type_id: r.g2bulk_type_id,
         fields,
@@ -68,10 +69,11 @@ router.get('/search', requireAdmin, async (req, res) => {
     let list = prodData.products;
     if (q) {
       list = list.filter(p => {
-        const name = String(p.name || '').toLowerCase();
+        const title = String(p.title || p.name || '').toLowerCase();
         const id = String(p.id || '').toLowerCase();
-        const amount = String(p.amount || '');
-        return name.includes(q) || id.includes(q) || amount.includes(q);
+        const amount = String(p.unit_price ?? p.amount ?? '');
+        const category = String(p.category_title || '').toLowerCase();
+        return title.includes(q) || id.includes(q) || amount.includes(q) || category.includes(q);
       });
     }
 
@@ -88,10 +90,12 @@ router.get('/search', requireAdmin, async (req, res) => {
       const pid = `card_${p.id}`;
       return {
         id: p.id,
-        name: p.name || `Card ${p.id}`,
-        amount: parseFloat(p.amount) || 0,
+        name: p.title || p.name || `Card ${p.id}`,
+        category: p.category_title || null,
+        amount: parseFloat(p.unit_price ?? p.amount) || 0,
+        stock: p.stock ?? null,
         imported: !!importedMap[pid],
-        category: importedMap[pid] || null,
+        importedCategory: importedMap[pid] || null,
       };
     });
     return res.json({ products, total: list.length });
@@ -125,13 +129,15 @@ router.post('/import', requireAdmin, async (req, res) => {
     let imported = 0;
     for (const prod of prodData.products) {
       if (onlyIds && !onlyIds.has(String(prod.id))) continue;
-      const pName = prod.name || `Card ${prod.id}`;
-      const amount = parseFloat(prod.amount) || 0;
+      // G2Bulk /products returns: { id, title, description, category_id, category_title, unit_price, image_url, stock }
+      const pName = prod.title || prod.name || `Card ${prod.id}`;
+      const amount = parseFloat(prod.unit_price ?? prod.amount) || 0;
+      const fields = { category: product_type, category_title: prod.category_title || null, stock: prod.stock ?? null, image_url: prod.image_url || null };
       await query(
         `INSERT INTO g2bulk_products (id, g2bulk_type_id, g2bulk_product_id, game_name, product_name, denomination, price, currency, fields, is_active, product_type)
          VALUES (UUID(), '', ?, ?, ?, ?, 'USD', ?, 1, 'card')
          ON DUPLICATE KEY UPDATE game_name = VALUES(game_name), product_name = VALUES(product_name), denomination = VALUES(denomination), price = VALUES(price), fields = VALUES(fields), is_active = 1, product_type = 'card'`,
-        [`card_${prod.id}`, pName, pName, amount, JSON.stringify({ category: product_type })]
+        [`card_${prod.id}`, pName, pName, amount, JSON.stringify(fields)]
       );
       imported++;
     }

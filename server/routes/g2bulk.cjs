@@ -165,12 +165,12 @@ async function syncProducts(apiKey) {
     const prodData = await prodRes.json();
     if (prodData.products) {
       for (const prod of prodData.products) {
-        const pName = prod.name || `Card ${prod.id}`;
+        const pName = prod.title || prod.name || `Card ${prod.id}`;
         allProducts.push({
           g2bulk_type_id: '', g2bulk_product_id: `card_${prod.id}`,
           game_name: pName, product_name: pName,
-          denomination: pName, price: parseFloat(prod.amount) || 0,
-          currency: 'USD', fields: JSON.stringify({}), product_type: 'card',
+          denomination: pName, price: parseFloat(prod.unit_price ?? prod.amount) || 0,
+          currency: 'USD', fields: JSON.stringify({ category_title: prod.category_title || null, stock: prod.stock ?? null }), product_type: 'card',
         });
       }
     }
