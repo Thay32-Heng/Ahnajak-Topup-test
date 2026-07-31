@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, RefreshCw, Check, AlertTriangle, Gift, Search, Loader2, FolderOpen, PlusCircle, Percent, Save, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { Download, RefreshCw, Check, AlertTriangle, Gift, Search, Loader2, FolderOpen, PlusCircle, Save, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
@@ -45,8 +45,6 @@ const G2BulkVGImport: React.FC = () => {
 
   const [vgGames, setVgGames] = useState<VgGame[]>([]);
   const [vgGamesLoading, setVgGamesLoading] = useState(true);
-  const [markup, setMarkup] = useState(0);
-  const [markupSaving, setMarkupSaving] = useState(false);
   const [edits, setEdits] = useState<Record<string, VgGameDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -71,7 +69,6 @@ const G2BulkVGImport: React.FC = () => {
       if (error) throw new Error(error.message || String(error));
       const d = data as any;
       setVgGames((d?.games || []) as VgGame[]);
-      if (typeof d?.markup === 'number') setMarkup(d.markup);
     } catch (err: any) {
       toast({ title: 'Failed to load imported categories', description: err.message || 'Unknown error', variant: 'destructive' });
       setVgGames([]);
@@ -343,42 +340,6 @@ const G2BulkVGImport: React.FC = () => {
               Existing items with the same ID will be updated.
               Go to <strong>Prices → Voucher & Gift Card</strong> tab to manage visibility.
             </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-purple-500/30">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Percent className="w-5 h-5 text-purple-500" />
-            <span>Price Markup</span>
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Selling price = G2Bulk price + markup%. Applied to new imports and existing products.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-3">
-            <div className="w-40">
-              <label className="text-sm font-medium mb-2 block">Markup %</label>
-              <Input
-                type="number"
-                min={0}
-                max={500}
-                value={markup}
-                onChange={(e) => setMarkup(Number(e.target.value))}
-                placeholder="e.g. 10"
-                className="border-gold/50"
-              />
-            </div>
-            <Button
-              onClick={handleSaveMarkup}
-              disabled={markupSaving}
-              className="bg-gold hover:bg-gold-dark text-primary-foreground"
-            >
-              {markupSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              Save & Reprice
-            </Button>
           </div>
         </CardContent>
       </Card>

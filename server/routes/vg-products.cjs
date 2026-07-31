@@ -5,10 +5,20 @@
  * POST /api/products/vg/import     — admin: import products from G2Bulk (all / by ids / by category)
  */
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { query, queryOne } = require('../db.cjs');
 const { requireAdmin } = require('../auth.cjs');
 
 const router = express.Router();
+
+// Admin price polling hits G2Bulk's paid API — cap requests
+const livePriceLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: { error: 'Too many requests — please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const G2BULK_API_URL = 'https://api.g2bulk.com/v1';
 
@@ -150,6 +160,45 @@ router.get('/categories', requireAdmin, async (req, res) => {
     return res.json({ categories });
   } catch (err) {
     console.error('[vg-products] Categories error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: live G2Bulk unit prices (1s polling from the VG Prices tab)
+let livePriceCache = null;
+async function fetchLivePrices() {
+  const now = Date.now();
+  if (livePriceCache && now - livePriceCache.fetchedAt < 5000) {
+    return livePriceCache; // G2Bulk data doesn't change 5x/second — cache between polls
+  }
+  const cfg = await queryOne("SELECT * FROM api_configurations WHERE api_name = 'g2bulk' AND is_enabled = 1");
+  if (!cfg?.api_secret) return { prices: {}, error: 'G2Bulk not configured' };
+  try {
+    const res = await fetch(`${G2BULK_API_URL}/products`, {
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': cfg.api_secret },
+    });
+    if (!res.ok) return { prices: {}, error: `G2Bulk HTTP ${res.status}` };
+    const data = await res.json();
+    const prices = {};
+    for (const prod of (Array.isArray(data.products) ? data.products : [])) {
+      const unitPrice = parseFloat(prod.unit_price ?? prod.amount);
+      if (Number.isFinite(unitPrice) && unitPrice > 0) {
+        prices[`card_${prod.id}`] = Math.round(unitPrice * 100) / 100;
+      }
+    }
+    livePriceCache = { prices, fetchedAt: Date.now() };
+    return livePriceCache;
+  } catch (err) {
+    return { prices: {}, error: err.message };
+  }
+}
+
+router.get('/live-prices', livePriceLimiter, requireAdmin, async (req, res) => {
+  try {
+    const result = await fetchLivePrices();
+    return res.json({ ...result, updated_at: new Date().toISOString() });
+  } catch (err) {
+    console.error('[vg-products] Live prices error:', err);
     return res.status(500).json({ error: err.message });
   }
 });
