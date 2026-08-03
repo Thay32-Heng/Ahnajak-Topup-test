@@ -435,9 +435,6 @@ const GetVgPage: React.FC = () => {
                     </div>
                     <div className="p-3 sm:p-4 flex flex-col gap-1 flex-1">
                       <h4 className="text-xs sm:text-sm font-bold text-foreground leading-tight line-clamp-2">{product.name}</h4>
-                      {product.description && (
-                        <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-1">{product.description}</p>
-                      )}
                       <div className="flex items-baseline gap-1.5 mt-auto pt-1">
                         <span className="text-base sm:text-lg font-extrabold" style={{ color: primaryColor }}>
                           ${product.price.toFixed(2)}
