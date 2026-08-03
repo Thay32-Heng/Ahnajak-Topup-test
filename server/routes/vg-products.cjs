@@ -164,6 +164,44 @@ router.get('/categories', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: delete an imported VG category (its shop game) + every product inside it
+router.delete('/categories/:id', requireAdmin, async (req, res) => {
+  try {
+    const game = await queryOne(
+      'SELECT id, name, g2bulk_category_id FROM games WHERE id = ? AND g2bulk_category_id IS NOT NULL',
+      [req.params.id]
+    );
+    if (!game) return res.status(404).json({ error: 'Category not found' });
+
+    const [products] = await query(
+      `SELECT id, g2bulk_product_id FROM g2bulk_products
+       WHERE product_type = 'card'
+         AND (JSON_UNQUOTE(JSON_EXTRACT(fields, '$.category_id')) = ?
+              OR JSON_UNQUOTE(JSON_EXTRACT(fields, '$.category_title')) = ?)`,
+      [String(game.g2bulk_category_id), game.name]
+    );
+
+    let productsDeleted = 0;
+    for (const p of products) {
+      const del = await query('DELETE FROM g2bulk_products WHERE id = ?', [p.id]);
+      productsDeleted += del?.[0]?.affectedRows || 0;
+    }
+
+    const productKeys = products.map(p => p.g2bulk_product_id).filter(Boolean);
+    if (productKeys.length) {
+      await query('DELETE FROM packages WHERE g2bulk_product_id IN (?)', [productKeys]);
+      await query('DELETE FROM special_packages WHERE g2bulk_product_id IN (?)', [productKeys]);
+    }
+
+    await query('DELETE FROM games WHERE id = ?', [game.id]);
+
+    return res.json({ success: true, game: game.name, products_deleted: productsDeleted });
+  } catch (err) {
+    console.error('[vg-products] Delete category error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin: live G2Bulk unit prices (1s polling from the VG Prices tab)
 let livePriceCache = null;
 async function fetchLivePrices() {

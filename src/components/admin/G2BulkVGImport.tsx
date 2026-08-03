@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, RefreshCw, Check, AlertTriangle, Gift, Search, Loader2, FolderOpen, PlusCircle, Save, ExternalLink, Edit3, X, Image as ImageIcon } from 'lucide-react';
+import { Download, RefreshCw, Check, AlertTriangle, Gift, Search, Loader2, FolderOpen, PlusCircle, Save, ExternalLink, Edit3, X, Trash2, Image as ImageIcon } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 import ImageUpload from '@/components/ImageUpload';
@@ -63,6 +63,7 @@ const G2BulkVGImport: React.FC = () => {
   const [productsLoadingId, setProductsLoadingId] = useState<string | null>(null);
   const [productImgDrafts, setProductImgDrafts] = useState<Record<string, string>>({});
   const [productSavingId, setProductSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Load the product list of the category being edited (for icon editing)
   useEffect(() => {
@@ -261,6 +262,31 @@ const G2BulkVGImport: React.FC = () => {
       toast({ title: 'Failed to update category', description: err.message || 'Unknown error', variant: 'destructive' });
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const handleDeleteCategory = async (g: VgGame) => {
+    const ok = window.confirm(
+      `Delete category "${g.name}"?\n\nThis removes the category from your shop AND deletes every imported product inside it (products can be re-imported from G2Bulk anytime).`
+    );
+    if (!ok) return;
+    setDeletingId(g.id);
+    try {
+      const { data, error } = await api.del(`/products/vg/categories/${g.id}`);
+      if (error) throw new Error(error.message || String(error));
+      const d = data as any;
+      toast({
+        title: 'Category deleted!',
+        description: d?.products_deleted
+          ? `${d.products_deleted} product${d.products_deleted !== 1 ? 's' : ''} removed with it.`
+          : undefined,
+      });
+      setEditingId((prev) => (prev === g.id ? null : prev));
+      loadVgGames();
+    } catch (err: any) {
+      toast({ title: 'Failed to delete category', description: err.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -614,6 +640,16 @@ const G2BulkVGImport: React.FC = () => {
                             onClick={() => startEdit(g)}
                           >
                             <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 px-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                            title="Delete category (and its products)"
+                            disabled={deletingId === g.id}
+                            onClick={() => handleDeleteCategory(g)}
+                          >
+                            {deletingId === g.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                           </Button>
                         </div>
                       </>
