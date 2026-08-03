@@ -236,7 +236,7 @@ const OrdersTab: React.FC = () => {
     setCheckingG2Bulk(prev => ({ ...prev, [order.id]: true }));
     try {
       const { data, error } = await db.functions.invoke('process-topup', {
-        body: { action: 'fulfill', orderId: order.id },
+        body: { action: 'fulfill', orderId: order.id, force: true },
       });
 
       if (error) throw error;
@@ -250,7 +250,8 @@ const OrdersTab: React.FC = () => {
       loadOrders();
     } catch (error) {
       console.error('Error retrying G2Bulk order:', error);
-      toast({ title: 'Failed to retry order', variant: 'destructive' });
+      const message = error instanceof Error ? error.message : undefined;
+      toast({ title: 'Failed to retry order', description: message, variant: 'destructive' });
     } finally {
       setCheckingG2Bulk(prev => ({ ...prev, [order.id]: false }));
     }

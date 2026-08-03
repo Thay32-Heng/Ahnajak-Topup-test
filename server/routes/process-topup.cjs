@@ -507,6 +507,34 @@ router.post('/', optionalAuth, async (req, res) => {
           }
         }
       }
+
+      if (body.force === true) {
+        // Manual retry forces status to 'paid' — this must never be usable by an order
+        // owner (client), otherwise an unpaid 'pending' order could be fulfilled for free.
+        if (!isAdmin) {
+          return res.json({ success: false, error: 'Manual retry requires admin access' });
+        }
+        const current = await queryOne(`SELECT status, g2bulk_order_id FROM ${tableName} WHERE id = ?`, [body.orderId]);
+        if (!current) return res.status(404).json({ success: false, error: 'Order not found' });
+        if (current.status === 'pending_manual') {
+          return res.json({
+            success: false,
+            error: 'Manual review required — G2Bulk may already have this order (no codes returned). Check the G2Bulk order before retrying to avoid a double charge. If G2Bulk has no order, change status to failed and retry.',
+          });
+        }
+        if (current.status === 'failed' || current.status === 'pending' || current.status === 'paid') {
+          const flip = await query(
+            `UPDATE ${tableName} SET status = 'paid', status_message = 'Manual retry: re-sending to G2Bulk' WHERE id = ? AND status IN ('failed','pending','paid')`,
+            [body.orderId]
+          );
+          if (flip?.[0]?.affectedRows === 0) {
+            return res.json({ success: false, error: 'Order cannot be retried from its current status' });
+          }
+        } else {
+          return res.json({ success: false, error: `Order cannot be retried from status "${current.status}"` });
+        }
+      }
+
       const result = await fulfillG2BulkOrder(body.orderId, tableName);
       return res.json(result);
     }
