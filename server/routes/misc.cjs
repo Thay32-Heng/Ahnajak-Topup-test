@@ -52,4 +52,10 @@ router.post('/khqrcc-payment', async (req, res) => {
   } catch (err) { sendError(res, err, 'POST /khqrcc-payment'); }
 });
 
+// khqrcc-webhook (alias for legacy edge-function URL /api/khqrcc-webhook)
+router.post('/khqrcc-webhook', async (req, res) => {
+  const { handleKhqrccWebhook } = require('./payments.cjs');
+  return handleKhqrccWebhook(req, res);
+});
+
 module.exports = router;

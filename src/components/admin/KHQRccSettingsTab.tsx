@@ -195,7 +195,7 @@ const KHQRccSettingsTab: React.FC = () => {
           <Input
             value={config.success_url}
             onChange={(e) => setConfig({ ...config, success_url: e.target.value })}
-            placeholder={`${window.location.origin}/api/khqrcc-webhook?transaction_id=ORDER_ID`}
+            placeholder={`${window.location.origin}/api/payments/khqrcc-webhook?transaction_id=ORDER_ID`}
             className="border-gold/50"
           />
           <p className="text-xs text-muted-foreground">
@@ -230,7 +230,7 @@ const KHQRccSettingsTab: React.FC = () => {
             Configure this URL in your KHQRcc dashboard as the Global Webhook URL:
           </p>
           <code className="text-xs bg-secondary p-2 rounded block break-all">
-            {`${window.location.origin}/api/khqrcc-webhook`}
+            {`${window.location.origin}/api/payments/khqrcc-webhook`}
           </code>
           <p className="text-xs text-muted-foreground mt-2">
             Note: We will handle verification using your Secret Key.

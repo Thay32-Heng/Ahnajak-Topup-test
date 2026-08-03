@@ -144,7 +144,7 @@ async function handleCreatePayment(req, res) {
 }
 
 // ── KHQRcc webhook ─────────────────────────────────────────────────────────
-router.post('/khqrcc-webhook', async (req, res) => {
+async function handleKhqrccWebhook(req, res) {
   const { transaction_id, amount, status, req_time, hash: received_hash } = req.body;
   const gw = gatewayCache['khqrcc'];
   if (!gw?.config?.secret_key) {
@@ -189,7 +189,12 @@ router.post('/khqrcc-webhook', async (req, res) => {
   }
 
   res.status(400).send('Not success');
-});
+}
+
+router.post('/khqrcc-webhook', handleKhqrccWebhook);
+// Alias for the legacy edge-function URL (/api/khqrcc-webhook) — dashboards may
+// still be configured with the old path after the Supabase migration.
+module.exports.handleKhqrccWebhook = handleKhqrccWebhook;
 
 // ── Payment QR settings (admin CRUD) ────────────────────────────────────────
 router.get('/qr-settings', async (req, res) => {
