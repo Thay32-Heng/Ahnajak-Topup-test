@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Download, RefreshCw, Check, AlertTriangle, Gift, Search, Loader2, FolderOpen, PlusCircle, Save, ExternalLink, Edit3, X, Trash2, Image as ImageIcon } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -573,6 +574,15 @@ const G2BulkVGImport: React.FC = () => {
                               className="h-8 text-sm border-gold/30"
                             />
                           </div>
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-muted-foreground mb-1 block">Description (shown under the cover on the shop page)</label>
+                          <Textarea
+                            value={draft.description}
+                            onChange={(e) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, description: e.target.value } }))}
+                            placeholder="e.g. Instant delivery of Roblox gift card codes..."
+                            className="min-h-20 text-sm border-gold/30"
+                          />
                         </div>
 
                         {/* Products in this category — edit each product icon */}
