@@ -474,7 +474,7 @@ const G2BulkVGImport: React.FC = () => {
               No imported categories yet. Import a category above to create one.
             </p>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="space-y-3">
               {vgGames.map((g) => {
                 const draft = draftOf(g);
                 const editing = editingId === g.id;
@@ -483,42 +483,94 @@ const G2BulkVGImport: React.FC = () => {
                 return (
                   <div
                     key={g.id}
-                    className="relative rounded-xl overflow-hidden border border-border bg-card shadow-sm transition-all hover:shadow-md"
+                    className="rounded-xl border border-border bg-card shadow-sm overflow-hidden"
                   >
-                    {editing ? (
-                      <div className="p-3 space-y-3">
-                        <div>
-                          <label className="text-[11px] text-muted-foreground mb-1 block">Cover Image (wide banner)</label>
-                          <ImageUpload
-                            value={draft.cover_image}
-                            onChange={(url) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, cover_image: url } }))}
-                            folder="games"
-                            aspectRatio="wide"
-                            placeholder="Cover"
-                          />
+                    {/* Header row — one category per line */}
+                    <div className="flex items-center gap-3 p-3">
+                      <div className="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-muted/40 border border-border flex items-center justify-center">
+                        {img ? (
+                          <img src={resolveIconUrl(img)} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <ImageIcon className="w-5 h-5 text-muted-foreground/40" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">{g.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">/get-vg/{g.slug}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs"
+                          onClick={() => window.open(`/get-vg/${g.slug}`, '_blank')}
+                          title="Open shop page"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 mr-1" /> View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs text-gold hover:text-gold-dark"
+                          onClick={() => startEdit(g)}
+                        >
+                          <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 px-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          title="Delete category (and its products)"
+                          disabled={deletingId === g.id}
+                          onClick={() => handleDeleteCategory(g)}
+                        >
+                          {deletingId === g.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Edit panel — expands below the header, full width */}
+                    {editing && (
+                      <div className="border-t border-border p-4 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[11px] text-muted-foreground mb-1 block">Cover Image (wide banner)</label>
+                            <ImageUpload
+                              value={draft.cover_image}
+                              onChange={(url) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, cover_image: url } }))}
+                              folder="games"
+                              aspectRatio="wide"
+                              placeholder="Cover"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-muted-foreground mb-1 block">Icon</label>
+                            <ImageUpload
+                              value={draft.image}
+                              onChange={(url) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, image: url } }))}
+                              folder="games"
+                              aspectRatio="square"
+                              placeholder="Icon"
+                            />
+                          </div>
                         </div>
-                        <ImageUpload
-                          value={draft.image}
-                          onChange={(url) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, image: url } }))}
-                          folder="games"
-                          aspectRatio="square"
-                          placeholder="Icon"
-                        />
-                        <div>
-                          <label className="text-[11px] text-muted-foreground mb-1 block">Name</label>
-                          <Input
-                            value={draft.name}
-                            onChange={(e) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, name: e.target.value } }))}
-                            className="h-8 text-sm border-gold/30"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[11px] text-muted-foreground mb-1 block">URL Slug</label>
-                          <Input
-                            value={draft.slug}
-                            onChange={(e) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') } }))}
-                            className="h-8 text-sm border-gold/30"
-                          />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[11px] text-muted-foreground mb-1 block">Name</label>
+                            <Input
+                              value={draft.name}
+                              onChange={(e) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, name: e.target.value } }))}
+                              className="h-8 text-sm border-gold/30"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-muted-foreground mb-1 block">URL Slug</label>
+                            <Input
+                              value={draft.slug}
+                              onChange={(e) => setEdits((prev) => ({ ...prev, [g.id]: { ...draft, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') } }))}
+                              className="h-8 text-sm border-gold/30"
+                            />
+                          </div>
                         </div>
 
                         {/* Products in this category — edit each product icon */}
@@ -536,7 +588,7 @@ const G2BulkVGImport: React.FC = () => {
                               No products in this category yet
                             </p>
                           ) : (
-                            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                               {(categoryProducts[g.id] || []).map((p) => {
                                 const draftImg = productImgDrafts[p.id];
                                 const editingImg = productImgDrafts[p.id] !== undefined;
@@ -622,51 +674,6 @@ const G2BulkVGImport: React.FC = () => {
                           </Button>
                         </div>
                       </div>
-                    ) : (
-                      <>
-                        <div className="relative aspect-[3/4] bg-muted/40">
-                          {img ? (
-                            <img src={resolveIconUrl(img)} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                              <ImageIcon className="w-8 h-8" />
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                          <p className="absolute bottom-1.5 left-2 right-2 text-white text-xs font-semibold truncate drop-shadow">
-                            {g.name}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 p-1.5">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="flex-1 h-7 text-xs"
-                            onClick={() => window.open(`/get-vg/${g.slug}`, '_blank')}
-                            title="Open shop page"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5 mr-1" /> View
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="flex-1 h-7 text-xs text-gold hover:text-gold-dark"
-                            onClick={() => startEdit(g)}
-                          >
-                            <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 px-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                            title="Delete category (and its products)"
-                            disabled={deletingId === g.id}
-                            onClick={() => handleDeleteCategory(g)}
-                          >
-                            {deletingId === g.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                          </Button>
-                        </div>
-                      </>
                     )}
                   </div>
                 );
