@@ -43,6 +43,18 @@ const OrderHistoryPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const normalizeCardCodes = (raw: unknown): Array<{ code: string; serial?: string; expire?: string }> => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as Array<{ code: string; serial?: string; expire?: string }>;
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { /* ignore */ }
+    }
+    return [];
+  };
+
   useEffect(() => {
     if (user) {
       fetchOrders();
@@ -55,11 +67,11 @@ const OrderHistoryPage = () => {
     try {
       const { data, error } = await db
         .from("topup_orders")
-        .select("id, game_name, package_name, player_id, amount, currency, status, created_at")
+        .select("id, game_name, package_name, player_id, amount, currency, status, card_codes, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setOrders(data || []);
+      setOrders((data || []).map(o => ({ ...o, card_codes: normalizeCardCodes(o.card_codes) })));
     } catch (err: any) {
       console.error("Error fetching orders:", err);
     } finally {

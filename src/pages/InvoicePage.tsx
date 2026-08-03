@@ -54,6 +54,18 @@ const InvoicePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const normalizeCardCodes = (raw: unknown): Array<{ code: string; serial?: string; expire?: string }> => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as Array<{ code: string; serial?: string; expire?: string }>;
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch { /* ignore */ }
+    }
+    return [];
+  };
+
   useEffect(() => {
     if (orderId) {
       fetchOrder();
@@ -71,7 +83,8 @@ const InvoicePage = () => {
           },
           (payload) => {
             console.log('[Invoice] Order updated:', payload);
-            setOrder(payload.new as OrderData);
+            const updated = payload.new as OrderData;
+            setOrder({ ...updated, card_codes: normalizeCardCodes(updated.card_codes) });
           }
         )
         .subscribe();
@@ -93,7 +106,7 @@ const InvoicePage = () => {
       if (error) throw error;
       if (!data) throw new Error("Order not found");
 
-      setOrder(data);
+      setOrder({ ...data, card_codes: normalizeCardCodes(data.card_codes) });
     } catch (err: any) {
       console.error("Error fetching order:", err);
       setError(err.message || "Failed to load order");
