@@ -442,11 +442,6 @@ const GetVgPage: React.FC = () => {
                         <span className="text-base sm:text-lg font-extrabold" style={{ color: primaryColor }}>
                           ${product.price.toFixed(2)}
                         </span>
-                        {product.original_price && product.original_price > product.price && (
-                          <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
-                            ${product.original_price.toFixed(2)}
-                          </span>
-                        )}
                       </div>
                       {livePrice != null && (
                         <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] text-muted-foreground">
@@ -779,11 +774,6 @@ const GetVgPage: React.FC = () => {
                     <span className="text-lg font-extrabold" style={{ color: primaryColor }}>
                       ${product.price.toFixed(2)}
                     </span>
-                    {product.original_price && product.original_price > product.price && (
-                      <span className="text-xs text-muted-foreground line-through">
-                        ${product.original_price.toFixed(2)}
-                      </span>
-                    )}
                   </div>
                   {selectedProduct === product.id && (
                     <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-md" style={{ background: primaryColor }}>

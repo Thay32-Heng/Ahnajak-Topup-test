@@ -36,6 +36,7 @@ interface VgGameDraft {
   slug: string;
   image: string;
   cover_image: string;
+  description: string;
 }
 
 interface VgProductRow {
@@ -219,11 +220,11 @@ const G2BulkVGImport: React.FC = () => {
   };
 
   const draftOf = (g: VgGame): VgGameDraft => {
-    return edits[g.id] || { id: g.id, name: g.name, slug: g.slug, image: g.image || '', cover_image: g.cover_image || '' };
+    return edits[g.id] || { id: g.id, name: g.name, slug: g.slug, image: g.image || '', cover_image: g.cover_image || '', description: g.description || '' };
   };
 
   const startEdit = (g: VgGame) => {
-    setEdits((prev) => ({ ...prev, [g.id]: { id: g.id, name: g.name, slug: g.slug, image: g.image || '', cover_image: g.cover_image || '' } }));
+    setEdits((prev) => ({ ...prev, [g.id]: { id: g.id, name: g.name, slug: g.slug, image: g.image || '', cover_image: g.cover_image || '', description: g.description || '' } }));
     setEditingId(g.id);
   };
 
@@ -249,6 +250,7 @@ const G2BulkVGImport: React.FC = () => {
         slug: draft.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || undefined,
         image: draft.image || null,
         cover_image: draft.cover_image || null,
+        description: draft.description.trim() || null,
       });
       if (error) throw new Error(error.message || String(error));
       toast({ title: 'Category updated!' });

@@ -78,7 +78,7 @@ router.post('/', requireAdmin, async (req, res) => {
 // Update game (admin)
 router.put('/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const fields = ['name', 'image', 'slug', 'g2bulk_category_id', 'default_package_icon', 'cover_image', 'tags', 'sort_order'];
+  const fields = ['name', 'image', 'slug', 'g2bulk_category_id', 'default_package_icon', 'cover_image', 'tags', 'sort_order', 'description'];
   const sets = [];
   const values = [];
   for (const f of fields) {

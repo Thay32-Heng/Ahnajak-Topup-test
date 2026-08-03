@@ -445,6 +445,27 @@ router.post('/import', requireAdmin, async (req, res) => {
       if (await upsertCategoryGame(cid, cat.title, cat.image)) gamesCreated++;
     }
 
+    // Backfill missing category logos from the G2Bulk category API (product
+    // thumbnails are often empty, so homepage VG cards would show no image).
+    try {
+      const catRes = await fetch(`${G2BULK_API_URL}/category`, { headers });
+      const catData = await catRes.json();
+      if (Array.isArray(catData.categories)) {
+        let imagesBackfilled = 0;
+        for (const cat of catData.categories) {
+          if (!cat.image_url) continue;
+          const upd = await query(
+            "UPDATE games SET image = ? WHERE g2bulk_category_id = ? AND (image IS NULL OR image = '')",
+            [cat.image_url, String(cat.id)]
+          );
+          imagesBackfilled += upd?.[0]?.affectedRows || 0;
+        }
+        if (imagesBackfilled) console.log(`[vg-products] Backfilled ${imagesBackfilled} category logo(s)`);
+      }
+    } catch (err) {
+      console.error('[vg-products] Category image backfill error:', err.message);
+    }
+
     return res.json({
       success: true,
       imported,
