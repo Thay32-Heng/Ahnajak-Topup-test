@@ -16,6 +16,7 @@ interface G2Category {
   description: string | null;
   product_count: number;
   imported_count: number;
+  hidden_count?: number;
 }
 
 interface VgGame {
@@ -361,6 +362,9 @@ const G2BulkVGImport: React.FC = () => {
                           {c.imported_count > 0 && (
                             <span className="text-green-600"> · {c.imported_count} added</span>
                           )}
+                          {(c.hidden_count || 0) > 0 && (
+                            <span className="text-amber-500"> · {c.hidden_count} hidden</span>
+                          )}
                           {c.description && (
                             <span className="text-muted-foreground/60 truncate block max-w-[320px]">{c.description}</span>
                           )}
@@ -594,6 +598,16 @@ const G2BulkVGImport: React.FC = () => {
                         </div>
 
                         <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-8 px-2.5"
+                            disabled={deletingId === g.id}
+                            onClick={() => handleDeleteCategory(g)}
+                            title="Delete this category and all its products"
+                          >
+                            {deletingId === g.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </Button>
                           <Button
                             size="sm"
                             className="flex-1 bg-gold hover:bg-gold-dark text-primary-foreground"

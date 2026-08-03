@@ -132,14 +132,21 @@ router.get('/categories', requireAdmin, async (req, res) => {
     const catRes = await fetch(`${G2BULK_API_URL}/category`, { headers });
     const catData = await catRes.json();
 
-    // Count already-imported products per category
+    // Count already-imported products per category (visible ones only —
+    // hidden products count as "not imported" so they can be re-imported)
     const [rows] = await query(
-      "SELECT fields FROM g2bulk_products WHERE product_type = 'card'"
+      "SELECT fields, is_active FROM g2bulk_products WHERE product_type = 'card'"
     );
     const importedByCategory = {};
+    const hiddenByCategory = {};
     for (const r of rows) {
       const title = parseFields(r.fields).category_title;
-      if (title) importedByCategory[title] = (importedByCategory[title] || 0) + 1;
+      if (!title) continue;
+      if (!r.is_active) {
+        hiddenByCategory[title] = (hiddenByCategory[title] || 0) + 1;
+      } else {
+        importedByCategory[title] = (importedByCategory[title] || 0) + 1;
+      }
     }
 
     let categories = Array.isArray(catData.categories)
@@ -150,6 +157,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
           image_url: c.image_url || null,
           product_count: c.product_count || 0,
           imported_count: importedByCategory[c.title] || 0,
+          hidden_count: hiddenByCategory[c.title] || 0,
         }))
       : [];
 
