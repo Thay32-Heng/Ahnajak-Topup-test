@@ -146,25 +146,34 @@ async function handleCreatePayment(req, res) {
 // ── KHQRcc webhook ─────────────────────────────────────────────────────────
 async function handleKhqrccWebhook(req, res) {
   const { transaction_id, amount, status, req_time, hash: received_hash } = req.body;
+  console.log(`[khqrcc-webhook] received: tx=${transaction_id} amount=${amount} status=${status}`);
   const gw = gatewayCache['khqrcc'];
   if (!gw?.config?.secret_key) {
     await refreshGatewayCache();
   }
   const cfg = gatewayCache['khqrcc']?.config;
-  if (!cfg?.secret_key) return res.status(500).send('Config missing');
+  if (!cfg?.secret_key) {
+    console.error('[khqrcc-webhook] REJECTED: no secret_key configured for gateway khqrcc');
+    return res.status(500).send('Config missing');
+  }
 
   const dataToHash = cfg.secret_key + (req_time || '') + (transaction_id || '') + (amount || '') + (status || '');
   const expectedHash = crypto.createHash('sha256').update(dataToHash).digest('hex');
 
   if (expectedHash !== received_hash) {
+    console.error(`[khqrcc-webhook] REJECTED: invalid hash for tx=${transaction_id} (expected=${expectedHash} received=${received_hash})`);
     return res.status(403).send('Invalid hash');
   }
 
   if (status === 'SUCCESS') {
     // Idempotency check: skip if already paid
     const existingOrder = await queryOne('SELECT status, amount FROM topup_orders WHERE id = ?', [transaction_id]);
-    if (!existingOrder) return res.status(404).json({ error: 'Order not found' });
+    if (!existingOrder) {
+      console.error(`[khqrcc-webhook] REJECTED: order not found for tx=${transaction_id}`);
+      return res.status(404).json({ error: 'Order not found' });
+    }
     if (existingOrder.status === 'paid' || existingOrder.status === 'completed') {
+      console.log(`[khqrcc-webhook] skip: order ${transaction_id} already ${existingOrder.status}`);
       return res.status(200).json({ received: true, status: 'already_processed' });
     }
 
@@ -172,15 +181,18 @@ async function handleKhqrccWebhook(req, res) {
     const paidAmount = parseFloat(amount);
     const expectedAmount = parseFloat(existingOrder.amount);
     if (isNaN(paidAmount) || isNaN(expectedAmount) || Math.abs(paidAmount - expectedAmount) > 0.01) {
+      console.error(`[khqrcc-webhook] REJECTED: amount mismatch for tx=${transaction_id} (paid=${amount} expected=${existingOrder.amount})`);
       return res.status(400).json({ error: 'Payment amount mismatch' });
     }
 
     await query('UPDATE topup_orders SET status = ? WHERE id = ?', ['paid', transaction_id]);
+    console.log(`[khqrcc-webhook] order ${transaction_id} marked paid`);
 
     // Trigger fulfillment (call process-topup internally)
     try {
       const processTopup = require('./process-topup.cjs');
       await processTopup.fulfillOrder(transaction_id);
+      console.log(`[khqrcc-webhook] fulfillment triggered for ${transaction_id}`);
     } catch (err) {
       console.error('Fulfillment trigger error:', err.message);
     }
@@ -188,6 +200,7 @@ async function handleKhqrccWebhook(req, res) {
     return res.status(200).json({ received: true });
   }
 
+  console.warn(`[khqrcc-webhook] REJECTED: status "${status}" is not SUCCESS for tx=${transaction_id}`);
   res.status(400).send('Not success');
 }
 
