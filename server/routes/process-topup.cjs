@@ -13,7 +13,7 @@ const { requireAuth, optionalAuth, hasRole } = require('../auth.cjs');
 const { sendError } = require('../helpers/errors.cjs');
 
 const router = express.Router();
-const G2BULK_API_URL = 'https://api.g2bulk.com/v1';
+const G2BULK_API_URL = 'https://api.kesor.com/v1';
 
 // ── Telegram notification ──────────────────────────────────────────────────
 async function sendTelegramNotification(message, isError = false) {
