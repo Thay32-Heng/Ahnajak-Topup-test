@@ -7,7 +7,7 @@ const { query, queryOne, uuid } = require('../db.cjs');
 const { requireAuth, requireAdmin } = require('../auth.cjs');
 
 const router = express.Router();
-const G2BULK_API_URL = 'https://api.g2bulk.com/v1';
+const G2BULK_API_URL = 'https://api.kesor.com/v1';
 
 function g2bulkHeaders(apiKey) {
   return { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-API-Key': apiKey };
