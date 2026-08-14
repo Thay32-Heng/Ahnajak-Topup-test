@@ -20,7 +20,7 @@ const livePriceLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const G2BULK_API_URL = 'https://api.g2bulk.com/v1';
+const G2BULK_API_URL = 'https://api.kesor.com/v1';
 
 function parseFields(fields) {
   if (!fields) return {};
